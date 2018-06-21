@@ -1,11 +1,6 @@
 
-# import the necessary packages
 from PIL import Image
 from PIL import ImageTk
-from pymba import *
-from my_andor.andor_wrap import *
-from ctypes import *
-import zaber.serial as zs
 import Tkinter as tki
 import threading
 import datetime
@@ -16,15 +11,24 @@ import time
 import math
 import os
 import sys 
-import subprocess as sp
-import matplotlib
 import hough_transform as ht
 import skvideo.io as skv
-matplotlib.use('TkAgg')
 
+# device imports
+import device_init
+from pymba import *
+from my_andor.andor_wrap import *
+from ctypes import *
+import zaber.serial as zs
+
+# graphing imports
+import matplotlib
+matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from scipy.optimize import curve_fit
+
+
 
 class App(threading.Thread):
     def __init__(self, outputPath):
@@ -32,14 +36,14 @@ class App(threading.Thread):
         threading.Thread.__init__(self)
         self.start()
         self.lock = threading.Lock()
-
+        self.condition = threading.Condition()
 
         self.root = tki.Tk()
         # initiallize and access cameras, motors and graphs
-        self.mako = Mako_Camera()
-        self.andor = Andor_Camera()
+        self.mako = device_init.Mako_Camera()
+        self.andor = device_init.Andor_Camera()
+        self.motor = device_init.Motor()
         self.graph = Graph()
-        self.motor = Motor()
 
         self.outputPath = outputPath
         self.frame = self.mako.camera.getFrame()
@@ -67,28 +71,29 @@ class App(threading.Thread):
         # GUI constants
         self.record = False
         self.pupil_video_writer = None
-
         self.andor_image_list = []
+        self.scan_ready = False
+        self.andor_export_image = None
 
         #button will take the current frame and save it to file
-        #btn = tki.Button(self.root, text="Picture", command=self.takeSnapshot)
-        #btn.grid(row = 3, column = 0, sticky = "w") 
+        snapshot_btn = tki.Button(self.root, text="Picture", command=self.takeSnapshot)
+        snapshot_btn.grid(row = 3, column = 0, sticky = "w") 
 
         record_btn = tki.Button(self.root, text="Record", command=self.triggerRecord)
-        record_btn.grid(row=3, column=0, sticky="w")
+        record_btn.grid(row=3, column=1, sticky="w")
 
         #reference button, shutter_state also used to detemine graph fitting 
         #tied to function for changing shutter states
         self.shutter_state = tki.IntVar()
         reference_btn = tki.Checkbutton(self.root, text = "Reference", variable = self.shutter_state, command = self.shutters, indicatoron = 0)
-        reference_btn.grid(row = 3, column = 1, sticky = "w") 
+        reference_btn.grid(row = 3, column = 3, sticky = "w") 
 
         #Shows current FSR on interface
-        FSR_label = tki.Label(self.root, text = "FSR ").grid(row = 3, column = 2, sticky = "e")
+        FSR_label = tki.Label(self.root, text = "FSR ").grid(row = 3, column = 3, sticky = "e")
         self.FSR = tki.DoubleVar()
         self.FSR.set(16.2566)
         FSR_entry = tki.Entry(self.root, textvariable = self.FSR)
-        FSR_entry.grid(row = 3, column = 3, sticky = "w")
+        FSR_entry.grid(row = 3, column = 4, sticky = "w")
 
         #Shows current SD on interface
         SD_label = tki.Label(self.root, text = "SD ").grid(row = 3, column = 4, sticky = "e")
@@ -98,8 +103,10 @@ class App(threading.Thread):
         SD_entry.grid(row = 3, column = 5, sticky = "w")
 
 
+        ### MOTOR PANEL ###
+
         motor_label = tki.Label(self.root, text = "Motor Control")
-        motor_label.grid(row = 4, column = 0, sticky = "sw")
+        motor_label.grid(row = 4, column = 0, pady=10, sticky = "sw")
 
         #home button for motor
         home_btn = tki.Button(self.root, text = "Home", command = self.motor.device.home)
@@ -118,11 +125,11 @@ class App(threading.Thread):
         distance_entry.grid(row = 5, column = 1, sticky = "nw")
 
         #moves motor forward by given distance from above
-        forward_button = tki.Button(self.root, text = "Forward", command = lambda: self.move_motor_relative(distance_var.get()) )
+        forward_button = tki.Button(self.root, text = "Forward", command = lambda: self.move_motor_relative(distance_var.get()))
         forward_button.grid(row = 5, column = 2, sticky = "nw")
 
         #moves motor backwards by given distance from above
-        back_button = tki.Button(self.root, text = "Backwards", command = lambda: self.move_motor_relative(- distance_var.get()))
+        back_button = tki.Button(self.root, text = "Backwards", command = lambda: self.move_motor_relative(-distance_var.get()))
         back_button.grid(row = 5, column = 3, sticky = "nw")
 
         #shows current location of motor on rails
@@ -135,16 +142,36 @@ class App(threading.Thread):
         position_button.grid(row = 5, column = 5, sticky = "nw")
 
 
-       	
+        # Data collection: 
+        start_pos = tki.IntVar()
+        start_pos.set(0)
+        start_pos_label = tki.Label(self.root, text="Start(um)").grid(row = 6, column = 0)
+        start_pos_entry = tki.Entry(self.root, textvariable = start_pos)
+        start_pos_entry.grid(row = 7, column = 0)
+        
+        num_frames = tki.IntVar()
+        num_frames.set(0)
+        num_frames_label = tki.Label(self.root, text="#Frames").grid(row = 6, column = 1)
+        num_frames_entry = tki.Entry(self.root, textvariable = num_frames)
+        num_frames_entry.grid(row = 7, column = 1)
+        
+        scan_length = tki.IntVar()
+        scan_length.set(0)
+        scan_length_label = tki.Label(self.root, text="Length(um)").grid(row = 6, column = 2)
+        scan_length_entry = tki.Entry(self.root, textvariable = scan_length)
+        scan_length_entry.grid(row = 7, column = 2)
+
+       	scan_btn = tki.Button(self.root, text="Start Scan", command = lambda: self.slice_routine(start_pos.get(),scan_length.get(),num_frames.get()))
+        scan_btn.grid(row = 7, column = 3)
+
+
+
         self.stopEvent = threading.Event()
         self.thread = threading.Thread(target=self.videoLoop, args=())
         self.thread2 = threading.Thread(target=self.andorLoop, args=())
         self.thread.start()
         self.thread2.start()
 
-
- 
- 
         # set a callback to handle when the window is closed
         self.root.wm_title("Pupil")
         self.root.wm_protocol("WM_DELETE_WINDOW", self.onClose)
@@ -235,13 +262,26 @@ class App(threading.Thread):
 
             image_array = np.array(data, dtype = np.uint16)
             maximum = image_array.max()
-            print maximum
-            
+
+
             graph_data = list(data)  
             graph_array = np.array(graph_data, dtype = np.uint16)
             reshaped_graph = np.reshape(graph_array, (-1, 512))
 
             proper_image = np.reshape(image_array, (-1, 512))
+
+            if self.scan_ready: 
+                self.condition.acquire()
+                print "lock acquired"
+                self.andor_export_image = Image.fromarray(proper_image)
+                self.scan_ready = False
+                self.condition.notifyAll()
+                print "threads notified"
+                self.condition.release()
+                print "lock released"
+
+
+
             scaled_image = proper_image*(255.0/maximum)
             scaled_image = scaled_image.astype(int)
             scaled_8bit= np.array(scaled_image, dtype = np.uint8)
@@ -257,20 +297,28 @@ class App(threading.Thread):
 
 
             cropped = scaled_8bit[loc-7:loc+7, mid-40:mid+40]
-            self.graphLoop()
+            #self.graphLoop()
             
             (h, w)= cropped.shape[:2]
             if w <= 0 or h <= 0:
                 continue
+
             self.image_andor = cropped
-            image = imutils.resize(self.image_andor, width=1024)
+
+            #if not take_scan:
+            #    self.andor_image_list.append(self.image_andor)
+            #    take_scan = True
+            
+
+            image = imutils.resize(cropped, width=1024)
             image = Image.fromarray(image)
             
+
             #self.andor_image_list.append(image)
 
             image = ImageTk.PhotoImage(image)
 
-
+            print "about to update andor image"
 
             # if the panel is not None, we need to initialize it
             if self.panelB is None:
@@ -386,7 +434,7 @@ class App(threading.Thread):
         brillouin_plot.scatter(np.arange(1, len(self.brillouin_shift_list)+1), np.array(self.brillouin_shift_list))
 
         self.canvas.show()
-        self.canvas.get_tk_widget().grid(row = 1, column = 6, columnspan = 3, rowspan = 6)    #pack(side = "right")
+        self.canvas.get_tk_widgalet().grid(row = 1, column = 6, columnspan = 3, rowspan = 6)    #pack(side = "right")
 
     # moves zabor motor, called on by forwars and backwards buttons
     def move_motor_relative(self, distance):
@@ -399,6 +447,29 @@ class App(threading.Thread):
         self.motor.device.move_abs(location)
         loc = self.motor.device.send(60, 0)
         self.location_var.set(loc.data)
+
+
+    def slice_routine(self, start_pos, length, num_steps):
+        self.motor.device.move_abs(start_pos)
+        step_size = length // num_steps
+        imlist = []
+        for i in range(num_steps):
+            self.condition.acquire()
+
+            self.motor.device.move_rel(step_size)            
+            print "moving.. "
+
+            self.scan_ready = True
+            self.condition.wait()
+
+            print "adding images.."
+            imlist.append(self.andor_export_image)
+
+        print "length of imlist: ",len(imlist)
+        # Save images to tif file 
+        if len(imlist) != 0:
+            imlist[0].save("data_acquisition/scan.tif",compression="tiff_deflate",save_all=True,append_images=imlist[1:]) 
+            print "finished exporting as tif"
 
     def takeSnapshot(self):
         # grab the current timestamp and use it to construct the
@@ -420,9 +491,6 @@ class App(threading.Thread):
     # what happens when you exit out of application window
     # release connections to devices, closes application
     def onClose(self):
-        if len(self.andor_image_list) != 0:
-            self.andor_image_list[0].save("readings.tif",compression="tiff_deflate",save_all=True,append_images=self.andor_image_list[1:])
-
         self.stopEvent.set()
         self.mako.camera.runFeatureCommand('AcquisitionStop')
         self.mako.camera.endCapture()
@@ -433,91 +501,13 @@ class App(threading.Thread):
         self.root.quit()
         self.root.destroy()
 
-#EMCCD class, where settings can be set
-class Andor_Camera(object):
-    def __init__(self):
-        self.cam = Andor()
-        # cam.SetDemoReady()
-        self.set_up()
 
-    def set_up(self):
-        self.cam.SetReadMode(4)
-        self.cam.SetAcquisitionMode(1)
-        self.cam.SetTriggerMode(0)
-        self.cam.SetImage(1,4,1,self.cam.width,1,self.cam.height)
-        self.cam.SetShutter(1,1,0,0)
-        self.cam.SetExposureTime(.3)
-        self.cam.SetTemperature(-80)
-        self.cam.SetCoolerMode(1)
-
-        self.cam.GetTemperature()
-        print "camera temperature: ",self.cam.temperature
-        # cam.CoolerOFF()
-        
-        while self.cam.temperature > -74:
-            self.cam.CoolerON()
-            self.cam.GetTemperature()
-            print "cooling down right now: ",self.cam.temperature
-        
-        self.cam.SetOutputAmplifier(0)
-
-
-        self.cam.GetNumberPreAmpGains()
-        print self.cam.noGains
-
-        self.cam.GetPreAmpGain()
-        print self.cam.preAmpGain
-
-        self.cam.SetPreAmpGain(2)
-
-        self.cam.SetEMAdvanced(1)
-        self.cam.SetEMCCDGain(300)
-
-# class for CMOS camera
-class Mako_Camera(object):
-    """docstring for ClassName"""
-    def __init__(self):
-        self.camera = None
-        self.vimba = Vimba()
-        self.set_up()
-
-    def set_up(self):
-        self.vimba.startup()
-        system = self.vimba.getSystem()
-        if system.GeVTLIsPresent:
-            system.runFeatureCommand("GeVDiscoveryAllOnce")
-            time.sleep(0.2)
-        camera_ids = self.vimba.getCameraIds()
-
-        print "camera_ids: ",camera_ids
-        self.camera = self.vimba.getCamera(camera_ids[0])
-        self.camera.openCamera()
-        self.camera.AcquisitionMode = 'Continuous'
 
 
 class Graph(object):
     def __init__(self):
         self.fig = Figure(figsize = (10, 10), dpi = 100)
         self.x_axis = np.arange(1,81)
-
-class Motor(object):
-    def __init__(self):
-        self.port = zs.BinarySerial("COM11", timeout = 20, inter_char_timeout = 0.05)
-        self.device = zs.BinaryDevice(self.port, 1)
-        self.device.home()
-
-        """
-        reply = self.port.read()
-        if reply.command_number == 255:
-            print("An error occurred in device {}. Error code: {}".format(
-                    reply.device_number, reply.data))
-        """
-        
-    def slice_routine(start_pos, end_pos, num_steps):
-    	self.device.move_abs(start_pos)
-    	step_size = (end_pos - start_pos) // num_steps
-    	for i in range(num_steps):
-    		self.device.move_rel(step_size)
 
         
 def lorentzian(x, gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, constant_3):
