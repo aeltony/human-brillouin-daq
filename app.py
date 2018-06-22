@@ -45,6 +45,7 @@ class App(threading.Thread):
         self.motor = device_init.Motor()
         self.graph = Graph()
 
+
         self.outputPath = outputPath
         self.frame = self.mako.camera.getFrame()
         self.frame.announceFrame()
