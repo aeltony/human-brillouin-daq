@@ -318,7 +318,7 @@ class App(threading.Thread):
 
             image = ImageTk.PhotoImage(image)
 
-            print "about to update andor image"
+            print "about to update andor"
 
             # if the panel is not None, we need to initialize it
             if self.panelB is None:
