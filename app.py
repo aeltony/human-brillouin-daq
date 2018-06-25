@@ -12,6 +12,7 @@ import math
 import os
 import sys 
 import traceback
+import Queue
 import hough_transform as ht
 import skvideo.io as skv
 
@@ -63,6 +64,7 @@ class App(threading.Thread):
         self.thread2 = None
         self.stopEvent = None
 
+        self.queue = Queue.Queue()
         # initialize the root window and image panel
         #CMOS camera panel
         self.panelA = None
@@ -171,8 +173,6 @@ class App(threading.Thread):
        	scan_btn = tki.Button(self.root, text="Start Scan", command = lambda: self.slice_routine(start_pos.get(),scan_length.get(),num_frames.get()))
         scan_btn.grid(row = 7, column = 3)
 
-
-
         self.stopEvent = threading.Event()
         self.thread = threading.Thread(target=self.videoLoop, args=())
         self.thread2 = threading.Thread(target=self.andorLoop, args=())
@@ -182,7 +182,39 @@ class App(threading.Thread):
         # set a callback to handle when the window is closed
         self.root.wm_title("Brillouin Scan Interface")
         self.root.wm_protocol("WM_DELETE_WINDOW", self.onClose)
-        
+
+        print "ENTERING QUEUE LOOP"
+
+        self.update_root()
+
+
+    def update_root(self):
+
+        while not self.stopEvent.is_set():
+            try:
+                destination, item = self.queue.get(timeout=0.1)
+
+                if destination == "panelA":
+                    if self.panelA is None:
+                        self.panelA = tki.Label(self.root,image=item)
+                        self.panelA.image = item
+                        self.panelA.grid(row = 0, column = 0, columnspan = 6, rowspan = 3) #pack(side="left", padx=10, pady=10)
+                    else:
+                        self.panelA.configure(image=item)
+                        self.panelA.image = item
+
+                elif destination == "panelB":
+                    if self.panelB is None:
+                        self.panelB = tki.Label(self.root,image=item)
+                        self.panelB.image = item
+                        self.panelB.grid(row = 0, column = 6, columnspan = 3) #pack(side="left", padx=10, pady=10)
+                    else:
+                        self.panelB.configure(image=item)
+                        self.panelB.image = item
+            except:
+                print "break"
+                break
+        self.root.after(300,self.update_root)
 
     #Loop for thread for CMOS camera - almost exact same as mako_pupil.py
     def videoLoop(self):
@@ -191,10 +223,9 @@ class App(threading.Thread):
         self.frame.queueFrameCapture()
 
 
-
         while not self.stopEvent.is_set():
             # self.root.update()
-            self.frame.waitFrameCapture(1000)
+            self.frame.waitFrameCapture(3000)
             self.frame.queueFrameCapture()
             imgData = self.frame.getBufferByteData()
             image = np.ndarray(buffer = imgData,
@@ -228,21 +259,7 @@ class App(threading.Thread):
             image = Image.fromarray(image)
             image = ImageTk.PhotoImage(image)
     	
-    		#for front end 
-            # if the panel is not None, we need to initialize it
-            if self.panelA is None:
-                self.panelA = tki.Label(image=image)
-                self.panelA.image = image
-                self.panelA.bind("<Button-1>",self.onClick)
-                self.panelA.bind("<ButtonRelease-1>",self.onRelease)
-                self.panelA.grid(row = 0, column = 0, columnspan = 6, rowspan = 3) #pack(side="left", padx=10, pady=10)
-
-    
-            # otherwise, simply update the panel
-            else:
-                self.panelA.configure(image=image)
-                self.panelA.image = image
-
+            self.queue.put(("panelA",image))
 
 
      #almost exactly same as andor_test.py 
@@ -312,23 +329,8 @@ class App(threading.Thread):
             image = ImageTk.PhotoImage(image)
 
 
+            self.queue.put(("panelB",image))
 
-            # if the panel is not None, we need to initialize it
-            if self.panelB is None:
-                self.panelB = tki.Label(image=image)
-                self.panelB.image = image
-                self.panelB.grid(row = 0, column = 6, columnspan = 3) #pack(side="left", padx=10, pady=10)
-
-            # otherwise, simply update the panel
-            else:
-                try:
-                    #print "about to update andor"
-                    self.panelB.configure(image=image)
-                    self.panelB.image = image
-                except:
-                    print "ERRORRRRRRRRRRRRRRRRRRR"
-                    traceback.print_exc(file=sys.stdout)
-                    continue
             
     #similar to shutters.py, called on by reference button 
     def shutters(self, close = False):
