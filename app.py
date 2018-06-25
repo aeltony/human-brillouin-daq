@@ -36,6 +36,7 @@ class App(threading.Thread):
         threading.Thread.__init__(self)
         self.start()
         self.lock = threading.Lock()
+        self.record_lock = threading.Lock()
         self.condition = threading.Condition()
 
         self.root = tki.Tk()
@@ -71,6 +72,7 @@ class App(threading.Thread):
 
         # GUI constants
         self.pupil_video_frames = []
+        self.pupil_data_list = []
         self.andor_image_list = []
         self.scan_ready = False
         self.andor_export_image = None
@@ -186,9 +188,7 @@ class App(threading.Thread):
         self.mako.camera.startCapture()
         self.mako.camera.runFeatureCommand('AcquisitionStart')
         self.frame.queueFrameCapture()
-    
-        frame_number = 0
-        pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
+
 
 
         while not self.stopEvent.is_set():
@@ -211,39 +211,19 @@ class App(threading.Thread):
                 pupil_data = ht.detect_pupil_frame(image)
 
 
-            if pupil_data[1] is None or pupil_data[2] is None: 
-                pupil_data_file.write("Frame: %d No pupil detected!\n" % frame_number)
-            else: 
-                pupil_data_file.write("Frame: %d Pupil Center: %s Pupil Radius: %d\n" % (frame_number,pupil_data[1],pupil_data[2]))
-            
-            
-            drawing = pupil_data[0]
-
             if self.record.get() == 1:
-                self.pupil_video_frames.append(drawing)
+                self.record_lock.acquire()
+
+                self.pupil_video_frames.append(pupil_data[0].copy())
+                self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
                 print "added frame to list"
-            """
-            if self.record is True:
-                if self.pupil_video_writer is None:
-                    self.pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
-                    '-vcodec':'libx264',
-                    '-b':'30000000',
-                    '-vf':'setpts=4*PTS'
-                    })
-                    print "made a new video writer!"
-                else:
-                    self.pupil_video_writer.writeFrame(drawing)
-                    print "writing to the video"
-            elif self.record is False and self.pupil_video_writer is not None:
-                self.pupil_video_writer.close()
-                self.pupil_video_writer = None
-                print "closed the writer"
-            """
+                
+                self.record_lock.release()
 
 
-            self.image = drawing
+            self.image = pupil_data[0]
             # convets image to form used by tkinter
-            image = cv2.cvtColor(drawing, cv2.COLOR_BGR2RGB)
+            image = cv2.cvtColor(pupil_data[0].copy(), cv2.COLOR_BGR2RGB)
             image = imutils.resize(image, width=1024)
             image = Image.fromarray(image)
             image = ImageTk.PhotoImage(image)
@@ -263,7 +243,6 @@ class App(threading.Thread):
                 self.panelA.configure(image=image)
                 self.panelA.image = image
 
-        pupil_data_file.close()
 
 
      #almost exactly same as andor_test.py 
@@ -273,9 +252,10 @@ class App(threading.Thread):
             self.andor.cam.StartAcquisition() 
             data = []                                            
             self.andor.cam.GetAcquiredData(data)
+            """
             while data == []:
                 continue
-
+            """
             image_array = np.array(data, dtype = np.uint16)
             maximum = image_array.max()
 
@@ -503,6 +483,9 @@ class App(threading.Thread):
 
     def triggerRecord(self):
         if self.record.get() == 0:
+            self.record_lock.acquire()
+
+            written_video_frames = 0
             pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
             '-vcodec':'libx264',
             '-b':'30000000',
@@ -511,11 +494,31 @@ class App(threading.Thread):
 
             for frame in self.pupil_video_frames:
                 pupil_video_writer.writeFrame(frame)
+                written_video_frames += 1
                 print "wrote a frame!"
             
             print "finished writing!"
             pupil_video_writer.close()
             self.pupil_video_frames = []
+
+    
+            frame_number = 0
+            pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
+
+            for frame_number in range(1,len(self.pupil_data_list)+1):
+                pupil_center, pupil_radius = self.pupil_data_list[frame_number-1]
+                if pupil_center is None or pupil_radius is None: 
+                    pupil_data_file.write("Frame: %d No pupil detected!\n" % frame_number)
+                else: 
+                    pupil_data_file.write("Frame: %d Pupil Center: %s Pupil Radius: %d\n" % (frame_number,pupil_center,pupil_radius))
+
+            print "video frames vs data frames",written_video_frames,frame_number
+            pupil_data_file.close()
+            self.pupil_data_list = []
+
+            self.record_lock.release()
+
+
 
 
     def onClick(self,event):
