@@ -11,6 +11,7 @@ import time
 import math
 import os
 import sys 
+import traceback
 import hough_transform as ht
 import skvideo.io as skv
 
@@ -212,13 +213,12 @@ class App(threading.Thread):
 
 
             if self.record.get() == 1:
-                self.record_lock.acquire()
+                with self.record_lock:
 
-                self.pupil_video_frames.append(pupil_data[0].copy())
-                self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
-                print "added frame to list"
-                
-                self.record_lock.release()
+                    self.pupil_video_frames.append(pupil_data[0].copy())
+                    self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
+                    print "added frame to list"
+                    
 
 
             self.image = pupil_data[0]
@@ -266,22 +266,21 @@ class App(threading.Thread):
 
             proper_image = np.reshape(image_array, (-1, 512))
 
+
+            scaled_image = proper_image*(255.0/maximum)
+            scaled_image = scaled_image.astype(int)
+            scaled_8bit= np.array(scaled_image, dtype = np.uint8)
+
+
             if self.scan_ready: 
                 self.condition.acquire()
                 #print "andorloop lock acquired"
-                self.andor_export_image = Image.fromarray(proper_image)
+                self.andor_export_image = Image.fromarray(scaled_8bit)
                 self.scan_ready = False
                 self.condition.notifyAll()
                 #print "threads notified"
                 self.condition.release()
                 #print "lock released"
-
-
-
-            scaled_image = proper_image*(255.0/maximum)
-            scaled_image = scaled_image.astype(int)
-            scaled_8bit= np.array(scaled_image, dtype = np.uint8)
-           
 
             loc = np.argmax(scaled_8bit)/512
             left_right = scaled_8bit[loc].argsort()[-10:][::-1]
@@ -327,6 +326,8 @@ class App(threading.Thread):
                     self.panelB.configure(image=image)
                     self.panelB.image = image
                 except:
+                    print "ERRORRRRRRRRRRRRRRRRRRR"
+                    traceback.print_exc(file=sys.stdout)
                     continue
             
     #similar to shutters.py, called on by reference button 
@@ -433,7 +434,8 @@ class App(threading.Thread):
 
     # moves zabor motor, called on by forwars and backwards buttons
     def move_motor_relative(self, distance):
-        self.motor.device.move_rel(distance)
+        reply = self.motor.device.move_rel(distance)
+        print reply.device_number, reply.command_number
         loc = self.motor.device.send(60, 0)
         self.location_var.set(loc.data)
 
@@ -483,40 +485,38 @@ class App(threading.Thread):
 
     def triggerRecord(self):
         if self.record.get() == 0:
-            self.record_lock.acquire()
+            with self.record_lock:
 
-            written_video_frames = 0
-            pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
-            '-vcodec':'libx264',
-            '-b':'30000000',
-            '-vf':'setpts=4*PTS'
-            })
+                written_video_frames = 0
+                pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
+                '-vcodec':'libx264',
+                '-b':'30000000',
+                '-vf':'setpts=4*PTS'
+                })
 
-            for frame in self.pupil_video_frames:
-                pupil_video_writer.writeFrame(frame)
-                written_video_frames += 1
-                print "wrote a frame!"
-            
-            print "finished writing!"
-            pupil_video_writer.close()
-            self.pupil_video_frames = []
+                for frame in self.pupil_video_frames:
+                    pupil_video_writer.writeFrame(frame)
+                    written_video_frames += 1
+                    print "wrote a frame!"
+                
+                print "finished writing!"
+                pupil_video_writer.close()
+                self.pupil_video_frames = []
 
-    
-            frame_number = 0
-            pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
+        
+                frame_number = 0
+                pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
 
-            for frame_number in range(1,len(self.pupil_data_list)+1):
-                pupil_center, pupil_radius = self.pupil_data_list[frame_number-1]
-                if pupil_center is None or pupil_radius is None: 
-                    pupil_data_file.write("Frame: %d No pupil detected!\n" % frame_number)
-                else: 
-                    pupil_data_file.write("Frame: %d Pupil Center: %s Pupil Radius: %d\n" % (frame_number,pupil_center,pupil_radius))
+                for frame_number in range(1,len(self.pupil_data_list)+1):
+                    pupil_center, pupil_radius = self.pupil_data_list[frame_number-1]
+                    if pupil_center is None or pupil_radius is None: 
+                        pupil_data_file.write("Frame: %d No pupil detected!\n" % frame_number)
+                    else: 
+                        pupil_data_file.write("Frame: %d Pupil Center: %s Pupil Radius: %d\n" % (frame_number,pupil_center,pupil_radius))
 
-            print "video frames vs data frames",written_video_frames,frame_number
-            pupil_data_file.close()
-            self.pupil_data_list = []
-
-            self.record_lock.release()
+                print "video frames vs data frames",written_video_frames,frame_number
+                pupil_data_file.close()
+                self.pupil_data_list = []
 
 
 
