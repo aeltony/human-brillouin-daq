@@ -141,6 +141,7 @@ class App(threading.Thread):
         back_button = tki.Button(self.root, text = "Backwards", command = lambda: self.move_motor_relative(-distance_var.get()))
         back_button.grid(row = 5, column = 3, sticky = "nw")
 
+
         #shows current location of motor on rails
         location_label = tki.Label(self.root, text = "Position").grid(row = 4, column = 4, sticky = "sw")
         location_entry = tki.Entry(self.root, textvariable = self.location_var)
@@ -173,6 +174,15 @@ class App(threading.Thread):
        	scan_btn = tki.Button(self.root, text="Start Scan", command = lambda: self.slice_routine(start_pos.get(),scan_length.get(),num_frames.get()))
         scan_btn.grid(row = 7, column = 3)
 
+        velocity_var = tki.IntVar()
+        velocity_var.set(0)
+        velocity_label = tki.Label(self.root, text="Velocity").grid(row = 6, column = 4)
+        velocity_entry = tki.Entry(self.root, textvariable = velocity_var)
+        velocity_entry.grid(row = 7, column = 4)
+
+        velocity_btn = tki.Button(self.root, text="Change velocity", command = self.set_velocity)
+        velocity_btn.grid(row = 7, column = 5)
+
         self.stopEvent = threading.Event()
         self.thread = threading.Thread(target=self.videoLoop, args=())
         self.thread2 = threading.Thread(target=self.andorLoop, args=())
@@ -183,7 +193,6 @@ class App(threading.Thread):
         self.root.wm_title("Brillouin Scan Interface")
         self.root.wm_protocol("WM_DELETE_WINDOW", self.onClose)
 
-        print "ENTERING QUEUE LOOP"
 
         self.update_root()
 
@@ -215,6 +224,7 @@ class App(threading.Thread):
                 print "break"
                 break
         self.root.after(300,self.update_root)
+
 
     #Loop for thread for CMOS camera - almost exact same as mako_pupil.py
     def videoLoop(self):
@@ -447,6 +457,8 @@ class App(threading.Thread):
         loc = self.motor.device.send(60, 0)
         self.location_var.set(loc.data)
 
+    def set_velocity(self, velocity):
+        self.motor.device.send(42,velocity)
 
     def slice_routine(self, start_pos, length, num_steps):
         self.motor.device.move_abs(start_pos)
