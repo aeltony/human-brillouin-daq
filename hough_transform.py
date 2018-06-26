@@ -61,9 +61,9 @@ def detect_pupil_frame(frame,expected_radius=180,radius_range=15):
     frame_bgr = frame.copy()
 
     frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-     
-    frame = cv2.medianBlur(frame,5) #required for Hough transform
 
+    frame = cv2.medianBlur(frame,15) #required for Hough transform
+    #frame_bgr = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
     """
     ## Parameters for cv2.HoughCircles() ##
     image: 8-bit, single channel image. If working with a color image, convert to grayscale first.
@@ -75,8 +75,7 @@ def detect_pupil_frame(frame,expected_radius=180,radius_range=15):
     minRadius: Minimum size of the radius (in pixels).
     maxRadius: Maximum size of the radius (in pixels).
     """
-    #print "resolution", frame.shape
-    circles = cv2.HoughCircles(frame,cv2.HOUGH_GRADIENT,dp=1,minDist=1000,param1=20,param2=60,minRadius=100,maxRadius=1000)
+    circles = cv2.HoughCircles(frame,cv2.HOUGH_GRADIENT,dp=3,minDist=max(frame.shape[:2]),param1=1,param2=700,minRadius=expected_radius-radius_range,maxRadius=expected_radius+radius_range)
 
     min_objective = float('inf')
     min_circle_center = None
@@ -87,8 +86,8 @@ def detect_pupil_frame(frame,expected_radius=180,radius_range=15):
         circles = np.uint16(np.around(circles))
 
         for i in circles[0,:]:
-            #cv2.circle(frame_bgr,(i[0],i[1]),i[2],(0,255,0),2)
-            #cv2.circle(frame_bgr,(i[0],i[1]),2,(0,0,255),3)
+            cv2.circle(frame_bgr,(i[0],i[1]),i[2],(0,0,255),2)
+            cv2.circle(frame_bgr,(i[0],i[1]),2,(0,0,255),3)
 
             objective = abs(expected_radius - i[2])
 
@@ -97,20 +96,19 @@ def detect_pupil_frame(frame,expected_radius=180,radius_range=15):
                 min_circle_center = (i[0],i[1])
                 min_circle_radius = i[2]
 
-        if min_circle_center is None or min_circle_radius is None:
-            pass
-            #print "No circles detected!"
-        else:
+        if min_circle_center is not None and min_circle_radius is not None:
             cv2.circle(frame_bgr,min_circle_center,min_circle_radius,(255,0,0),2)
             cv2.circle(frame_bgr,min_circle_center,2,(255,0,0),3)
-            #print "center:",min_circle_center,"radius:",min_circle_radius
+            print "center:",min_circle_center,"radius:",min_circle_radius
 
     else:
         pass 
-        #print "No circles detected!"
+        print "No circles detected!"
 
-    cv2.circle(frame_bgr,(0,0),100,(0,0,255),2)
-    cv2.circle(frame_bgr,(100,100),100,(0,0,255),2)
+
+    cv2.line(frame_bgr,(0,0),(0,15),(0,0,0),5) # vertical line
+    cv2.line(frame_bgr,(0,0),(100,0),(255,255,255),5) # horizontal line
+
     return (frame_bgr.copy(),min_circle_center,min_circle_radius)
 
 
@@ -119,15 +117,19 @@ def detect_pupil_video(path,radius_range=None):
 
     # ask user for expected radius #
     ret,frame = cap.read()
+    print "Frame resolution: ",frame.shape
 
-    expected_radius = set_expected_radius(frame)
-    #expected_center = set_expected_center(frame)
+    #expected_radius = set_expected_radius(frame)
+    #print "Expected radius: ",expected_radius
 
     # detect circles with expected radius #
     while cap.isOpened():
         ret,frame = cap.read()
 
-        frame_bgr,min_circle_center,min_circle_radius = detect_pupil_frame(frame,expected_radius,radius_range)
+        if frame is None:
+            return
+
+        frame_bgr,min_circle_center,min_circle_radius = detect_pupil_frame(frame,radius_range=radius_range)
 
         if frame_bgr is None:
             break
@@ -140,4 +142,8 @@ def detect_pupil_video(path,radius_range=None):
 
 
 if __name__ == "__main__":
-    detect_pupil_video("Amira002.avi",15)
+    detect_pupil_video("pupil_videos/AmiraOD010_CCD.avi",30)
+    #most stable reading: AmiraOD011_CCD.avi, radius_range=15, median_blur=25
+    #stable during movement example: AmiraOD016_CCD.avi
+    #lots of blinking example: Amira0S003_CCD.avi
+    #another setting that works: dp=3, param2=700
