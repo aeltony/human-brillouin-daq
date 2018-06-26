@@ -437,6 +437,8 @@ class App(threading.Thread):
         self.canvas.show()
         self.canvas.get_tk_widgalet().grid(row = 1, column = 6, columnspan = 3, rowspan = 6)    #pack(side = "right")
 
+
+
     # moves zabor motor, called on by forwars and backwards buttons
     def move_motor_relative(self, distance):
         self.motor.device.move_rel(distance)
