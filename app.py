@@ -36,6 +36,7 @@ class App(threading.Thread):
         threading.Thread.__init__(self)
         self.start()
         self.lock = threading.Lock()
+        self.record_lock = threading.Lock()
         self.condition = threading.Condition()
 
         self.root = tki.Tk()
@@ -70,24 +71,28 @@ class App(threading.Thread):
         self.canvas = FigureCanvasTkAgg(self.graph.fig, master = self.root)
 
         # GUI constants
-        self.record = False
-        self.pupil_video_writer = None
+        self.pupil_video_frames = []
+        self.pupil_data_list = []
         self.andor_image_list = []
         self.scan_ready = False
         self.andor_export_image = None
+        self.click_pos = None
+        self.release_pos = None
+        self.expected_pupil_radius = 0
 
         #button will take the current frame and save it to file
         snapshot_btn = tki.Button(self.root, text="Picture", command=self.takeSnapshot)
         snapshot_btn.grid(row = 3, column = 0, sticky = "w") 
 
-        record_btn = tki.Button(self.root, text="Record", command=self.triggerRecord)
+        self.record = tki.IntVar()
+        record_btn = tki.Checkbutton(self.root, text="Record", variable = self.record, command=self.triggerRecord, indicatoron = 0)
         record_btn.grid(row=3, column=1, sticky="w")
 
         #reference button, shutter_state also used to detemine graph fitting 
         #tied to function for changing shutter states
         self.shutter_state = tki.IntVar()
         reference_btn = tki.Checkbutton(self.root, text = "Reference", variable = self.shutter_state, command = self.shutters, indicatoron = 0)
-        reference_btn.grid(row = 3, column = 3, sticky = "w") 
+        reference_btn.grid(row = 3, column = 2, sticky = "w") 
 
         #Shows current FSR on interface
         FSR_label = tki.Label(self.root, text = "FSR ").grid(row = 3, column = 3, sticky = "e")
@@ -174,7 +179,7 @@ class App(threading.Thread):
         self.thread2.start()
 
         # set a callback to handle when the window is closed
-        self.root.wm_title("Pupil")
+        self.root.wm_title("Brillouin Scan Interface")
         self.root.wm_protocol("WM_DELETE_WINDOW", self.onClose)
         
 
@@ -183,9 +188,7 @@ class App(threading.Thread):
         self.mako.camera.startCapture()
         self.mako.camera.runFeatureCommand('AcquisitionStart')
         self.frame.queueFrameCapture()
-    
-        frame_number = 0
-        pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
+
 
 
         while not self.stopEvent.is_set():
@@ -200,38 +203,27 @@ class App(threading.Thread):
             
             image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
-            pupil_data = ht.detect_pupil_frame(image)
-
-            if pupil_data[1] is None or pupil_data[2] is None: 
-                pupil_data_file.write("Frame: %d No pupil detected!\n" % frame_number)
-            else: 
-                pupil_data_file.write("Frame: %d Pupil Center: %s Pupil Radius: %d\n" % (frame_number,pupil_data[1],pupil_data[2]))
-            
-            
-            drawing = pupil_data[0]
+            if self.click_pos is not None and self.release_pos is not None:
+                expected_pupil_radius = int(math.sqrt((self.click_pos[0] - self.release_pos[0])**2 + (self.click_pos[1] - self.release_pos[1])**2)/2)
+                #print "expected_pupil_radius", expected_pupil_radius
+                pupil_data = ht.detect_pupil_frame(image,expected_pupil_radius,15)
+            else:
+                pupil_data = ht.detect_pupil_frame(image)
 
 
-            if self.record is True:
-                if self.pupil_video_writer is None:
-                    self.pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
-                    '-vcodec':'libx264',
-                    '-b':'30000000',
-                    '-vf':'setpts=4*PTS'
-                    })
-                    print "made a new video writer!"
-                else:
-                    self.pupil_video_writer.writeFrame(drawing)
-                    print "writing to the video"
-            elif self.record is False and self.pupil_video_writer is not None:
-                self.pupil_video_writer.close()
-                self.pupil_video_writer = None
-                print "closed the writer"
+            if self.record.get() == 1:
+                self.record_lock.acquire()
+
+                self.pupil_video_frames.append(pupil_data[0].copy())
+                self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
+                print "added frame to list"
+                
+                self.record_lock.release()
 
 
-
-            self.image = drawing
+            self.image = pupil_data[0]
             # convets image to form used by tkinter
-            image = cv2.cvtColor(drawing, cv2.COLOR_BGR2RGB)
+            image = cv2.cvtColor(pupil_data[0].copy(), cv2.COLOR_BGR2RGB)
             image = imutils.resize(image, width=1024)
             image = Image.fromarray(image)
             image = ImageTk.PhotoImage(image)
@@ -241,14 +233,16 @@ class App(threading.Thread):
             if self.panelA is None:
                 self.panelA = tki.Label(image=image)
                 self.panelA.image = image
+                self.panelA.bind("<Button-1>",self.onClick)
+                self.panelA.bind("<ButtonRelease-1>",self.onRelease)
                 self.panelA.grid(row = 0, column = 0, columnspan = 6, rowspan = 3) #pack(side="left", padx=10, pady=10)
+
     
             # otherwise, simply update the panel
             else:
                 self.panelA.configure(image=image)
                 self.panelA.image = image
 
-        pupil_data_file.close()
 
 
      #almost exactly same as andor_test.py 
@@ -258,9 +252,10 @@ class App(threading.Thread):
             self.andor.cam.StartAcquisition() 
             data = []                                            
             self.andor.cam.GetAcquiredData(data)
+            """
             while data == []:
                 continue
-
+            """
             image_array = np.array(data, dtype = np.uint16)
             maximum = image_array.max()
 
@@ -273,13 +268,13 @@ class App(threading.Thread):
 
             if self.scan_ready: 
                 self.condition.acquire()
-                print "lock acquired"
+                #print "andorloop lock acquired"
                 self.andor_export_image = Image.fromarray(proper_image)
                 self.scan_ready = False
                 self.condition.notifyAll()
-                print "threads notified"
+                #print "threads notified"
                 self.condition.release()
-                print "lock released"
+                #print "lock released"
 
 
 
@@ -311,15 +306,13 @@ class App(threading.Thread):
             #    take_scan = True
             
 
-            image = imutils.resize(cropped, width=1024)
+            image = imutils.resize(self.image_andor, width=1024)
             image = Image.fromarray(image)
             
 
-            #self.andor_image_list.append(image)
-
             image = ImageTk.PhotoImage(image)
 
-            print "about to update andor image"
+
 
             # if the panel is not None, we need to initialize it
             if self.panelB is None:
@@ -330,6 +323,7 @@ class App(threading.Thread):
             # otherwise, simply update the panel
             else:
                 try:
+                    #print "about to update andor"
                     self.panelB.configure(image=image)
                     self.panelB.image = image
                 except:
@@ -458,15 +452,17 @@ class App(threading.Thread):
         imlist = []
         for i in range(num_steps):
             self.condition.acquire()
+            #print "slice_routine acquired lock"
 
-            self.motor.device.move_rel(step_size)            
-            print "moving.. "
-
+            self.move_motor_relative(step_size)            
+            #print "moving.. "
+            print self.location_var.get()
             self.scan_ready = True
+            #print "waiting.."
             self.condition.wait()
 
-            print "adding images.."
             imlist.append(self.andor_export_image)
+            #print "adding images.."
 
         print "length of imlist: ",len(imlist)
         # Save images to tif file 
@@ -488,8 +484,53 @@ class App(threading.Thread):
         print("[INFO] saved {}".format(filename))
 
     def triggerRecord(self):
-        self.record = not self.record
+        if self.record.get() == 0:
+            self.record_lock.acquire()
 
+            written_video_frames = 0
+            pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
+            '-vcodec':'libx264',
+            '-b':'30000000',
+            '-vf':'setpts=4*PTS'
+            })
+
+            for frame in self.pupil_video_frames:
+                pupil_video_writer.writeFrame(frame)
+                written_video_frames += 1
+                print "wrote a frame!"
+            
+            print "finished writing!"
+            pupil_video_writer.close()
+            self.pupil_video_frames = []
+
+    
+            frame_number = 0
+            pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
+
+            for frame_number in range(1,len(self.pupil_data_list)+1):
+                pupil_center, pupil_radius = self.pupil_data_list[frame_number-1]
+                if pupil_center is None or pupil_radius is None: 
+                    pupil_data_file.write("Frame: %d No pupil detected!\n" % frame_number)
+                else: 
+                    pupil_data_file.write("Frame: %d Pupil Center: %s Pupil Radius: %d\n" % (frame_number,pupil_center,pupil_radius))
+
+            print "video frames vs data frames",written_video_frames,frame_number
+            pupil_data_file.close()
+            self.pupil_data_list = []
+
+            self.record_lock.release()
+
+
+
+
+    def onClick(self,event):
+        self.click_pos = (event.x,event.y)
+        self.release_pos = None
+        print self.click_pos
+
+    def onRelease(self,event):
+        self.release_pos = (event.x,event.y)
+        print self.release_pos
 
     # what happens when you exit out of application window
     # release connections to devices, closes application
