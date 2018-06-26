@@ -11,6 +11,8 @@ import time
 import math
 import os
 import sys 
+import traceback
+import Queue
 import hough_transform as ht
 import skvideo.io as skv
 
@@ -62,6 +64,7 @@ class App(threading.Thread):
         self.thread2 = None
         self.stopEvent = None
 
+        self.queue = Queue.Queue()
         # initialize the root window and image panel
         #CMOS camera panel
         self.panelA = None
@@ -138,6 +141,7 @@ class App(threading.Thread):
         back_button = tki.Button(self.root, text = "Backwards", command = lambda: self.move_motor_relative(-distance_var.get()))
         back_button.grid(row = 5, column = 3, sticky = "nw")
 
+
         #shows current location of motor on rails
         location_label = tki.Label(self.root, text = "Position").grid(row = 4, column = 4, sticky = "sw")
         location_entry = tki.Entry(self.root, textvariable = self.location_var)
@@ -170,7 +174,14 @@ class App(threading.Thread):
        	scan_btn = tki.Button(self.root, text="Start Scan", command = lambda: self.slice_routine(start_pos.get(),scan_length.get(),num_frames.get()))
         scan_btn.grid(row = 7, column = 3)
 
+        velocity_var = tki.IntVar()
+        velocity_var.set(0)
+        velocity_label = tki.Label(self.root, text="Velocity").grid(row = 6, column = 4)
+        velocity_entry = tki.Entry(self.root, textvariable = velocity_var)
+        velocity_entry.grid(row = 7, column = 4)
 
+        velocity_btn = tki.Button(self.root, text="Change velocity", command = self.set_velocity)
+        velocity_btn.grid(row = 7, column = 5)
 
         self.stopEvent = threading.Event()
         self.thread = threading.Thread(target=self.videoLoop, args=())
@@ -181,7 +192,39 @@ class App(threading.Thread):
         # set a callback to handle when the window is closed
         self.root.wm_title("Brillouin Scan Interface")
         self.root.wm_protocol("WM_DELETE_WINDOW", self.onClose)
-        
+
+
+        self.update_root()
+
+
+    def update_root(self):
+
+        while not self.stopEvent.is_set():
+            try:
+                destination, item = self.queue.get(timeout=0.1)
+
+                if destination == "panelA":
+                    if self.panelA is None:
+                        self.panelA = tki.Label(self.root,image=item)
+                        self.panelA.image = item
+                        self.panelA.grid(row = 0, column = 0, columnspan = 6, rowspan = 3) #pack(side="left", padx=10, pady=10)
+                    else:
+                        self.panelA.configure(image=item)
+                        self.panelA.image = item
+
+                elif destination == "panelB":
+                    if self.panelB is None:
+                        self.panelB = tki.Label(self.root,image=item)
+                        self.panelB.image = item
+                        self.panelB.grid(row = 0, column = 6, columnspan = 3) #pack(side="left", padx=10, pady=10)
+                    else:
+                        self.panelB.configure(image=item)
+                        self.panelB.image = item
+            except:
+                print "break"
+                break
+        self.root.after(300,self.update_root)
+
 
     #Loop for thread for CMOS camera - almost exact same as mako_pupil.py
     def videoLoop(self):
@@ -190,10 +233,9 @@ class App(threading.Thread):
         self.frame.queueFrameCapture()
 
 
-
         while not self.stopEvent.is_set():
             # self.root.update()
-            self.frame.waitFrameCapture(1000)
+            self.frame.waitFrameCapture(3000)
             self.frame.queueFrameCapture()
             imgData = self.frame.getBufferByteData()
             image = np.ndarray(buffer = imgData,
@@ -212,13 +254,12 @@ class App(threading.Thread):
 
 
             if self.record.get() == 1:
-                self.record_lock.acquire()
+                with self.record_lock:
 
-                self.pupil_video_frames.append(pupil_data[0].copy())
-                self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
-                print "added frame to list"
-                
-                self.record_lock.release()
+                    self.pupil_video_frames.append(pupil_data[0].copy())
+                    self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
+                    print "added frame to list"
+                    
 
 
             self.image = pupil_data[0]
@@ -228,21 +269,7 @@ class App(threading.Thread):
             image = Image.fromarray(image)
             image = ImageTk.PhotoImage(image)
     	
-    		#for front end 
-            # if the panel is not None, we need to initialize it
-            if self.panelA is None:
-                self.panelA = tki.Label(image=image)
-                self.panelA.image = image
-                self.panelA.bind("<Button-1>",self.onClick)
-                self.panelA.bind("<ButtonRelease-1>",self.onRelease)
-                self.panelA.grid(row = 0, column = 0, columnspan = 6, rowspan = 3) #pack(side="left", padx=10, pady=10)
-
-    
-            # otherwise, simply update the panel
-            else:
-                self.panelA.configure(image=image)
-                self.panelA.image = image
-
+            self.queue.put(("panelA",image))
 
 
      #almost exactly same as andor_test.py 
@@ -266,22 +293,21 @@ class App(threading.Thread):
 
             proper_image = np.reshape(image_array, (-1, 512))
 
+
+            scaled_image = proper_image*(255.0/maximum)
+            scaled_image = scaled_image.astype(int)
+            scaled_8bit= np.array(scaled_image, dtype = np.uint8)
+
+
             if self.scan_ready: 
                 self.condition.acquire()
                 #print "andorloop lock acquired"
-                self.andor_export_image = Image.fromarray(proper_image)
+                self.andor_export_image = Image.fromarray(scaled_8bit)
                 self.scan_ready = False
                 self.condition.notifyAll()
                 #print "threads notified"
                 self.condition.release()
                 #print "lock released"
-
-
-
-            scaled_image = proper_image*(255.0/maximum)
-            scaled_image = scaled_image.astype(int)
-            scaled_8bit= np.array(scaled_image, dtype = np.uint8)
-           
 
             loc = np.argmax(scaled_8bit)/512
             left_right = scaled_8bit[loc].argsort()[-10:][::-1]
@@ -313,21 +339,8 @@ class App(threading.Thread):
             image = ImageTk.PhotoImage(image)
 
 
+            self.queue.put(("panelB",image))
 
-            # if the panel is not None, we need to initialize it
-            if self.panelB is None:
-                self.panelB = tki.Label(image=image)
-                self.panelB.image = image
-                self.panelB.grid(row = 0, column = 6, columnspan = 3) #pack(side="left", padx=10, pady=10)
-
-            # otherwise, simply update the panel
-            else:
-                try:
-                    #print "about to update andor"
-                    self.panelB.configure(image=image)
-                    self.panelB.image = image
-                except:
-                    continue
             
     #similar to shutters.py, called on by reference button 
     def shutters(self, close = False):
@@ -435,7 +448,8 @@ class App(threading.Thread):
 
     # moves zabor motor, called on by forwars and backwards buttons
     def move_motor_relative(self, distance):
-        self.motor.device.move_rel(distance)
+        reply = self.motor.device.move_rel(distance)
+        print reply.device_number, reply.command_number
         loc = self.motor.device.send(60, 0)
         self.location_var.set(loc.data)
 
@@ -445,6 +459,8 @@ class App(threading.Thread):
         loc = self.motor.device.send(60, 0)
         self.location_var.set(loc.data)
 
+    def set_velocity(self, velocity):
+        self.motor.device.send(42,velocity)
 
     def slice_routine(self, start_pos, length, num_steps):
         self.motor.device.move_abs(start_pos)
@@ -485,40 +501,38 @@ class App(threading.Thread):
 
     def triggerRecord(self):
         if self.record.get() == 0:
-            self.record_lock.acquire()
+            with self.record_lock:
 
-            written_video_frames = 0
-            pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
-            '-vcodec':'libx264',
-            '-b':'30000000',
-            '-vf':'setpts=4*PTS'
-            })
+                written_video_frames = 0
+                pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
+                '-vcodec':'libx264',
+                '-b':'30000000',
+                '-vf':'setpts=4*PTS'
+                })
 
-            for frame in self.pupil_video_frames:
-                pupil_video_writer.writeFrame(frame)
-                written_video_frames += 1
-                print "wrote a frame!"
-            
-            print "finished writing!"
-            pupil_video_writer.close()
-            self.pupil_video_frames = []
+                for frame in self.pupil_video_frames:
+                    pupil_video_writer.writeFrame(frame)
+                    written_video_frames += 1
+                    print "wrote a frame!"
+                
+                print "finished writing!"
+                pupil_video_writer.close()
+                self.pupil_video_frames = []
 
-    
-            frame_number = 0
-            pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
+        
+                frame_number = 0
+                pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
 
-            for frame_number in range(1,len(self.pupil_data_list)+1):
-                pupil_center, pupil_radius = self.pupil_data_list[frame_number-1]
-                if pupil_center is None or pupil_radius is None: 
-                    pupil_data_file.write("Frame: %d No pupil detected!\n" % frame_number)
-                else: 
-                    pupil_data_file.write("Frame: %d Pupil Center: %s Pupil Radius: %d\n" % (frame_number,pupil_center,pupil_radius))
+                for frame_number in range(1,len(self.pupil_data_list)+1):
+                    pupil_center, pupil_radius = self.pupil_data_list[frame_number-1]
+                    if pupil_center is None or pupil_radius is None: 
+                        pupil_data_file.write("Frame: %d No pupil detected!\n" % frame_number)
+                    else: 
+                        pupil_data_file.write("Frame: %d Pupil Center: %s Pupil Radius: %d\n" % (frame_number,pupil_center,pupil_radius))
 
-            print "video frames vs data frames",written_video_frames,frame_number
-            pupil_data_file.close()
-            self.pupil_data_list = []
-
-            self.record_lock.release()
+                print "video frames vs data frames",written_video_frames,frame_number
+                pupil_data_file.close()
+                self.pupil_data_list = []
 
 
 
