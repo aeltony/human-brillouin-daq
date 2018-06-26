@@ -37,12 +37,22 @@ class App(threading.Thread):
 
         threading.Thread.__init__(self)
         self.start()
+
+        self.root = tki.Tk()
+
+
+        #threads and locks
+        self.thread = None
+        self.thread2 = None
+        self.stopEvent = None
+        
         self.lock = threading.Lock()
         self.record_lock = threading.Lock()
         self.condition = threading.Condition()
+        self.stopEvent = threading.Event()
 
-        self.root = tki.Tk()
-        # initiallize and access cameras, motors and graphs
+
+        # initialize and access cameras, motors and graphs
         self.mako = device_init.Mako_Camera()
         self.andor = device_init.Andor_Camera()
         self.motor = device_init.Motor()
@@ -60,11 +70,6 @@ class App(threading.Thread):
         self.PlasticBS =  9.6051
         self.WaterBS = 5.1157
 
-        self.thread = None
-        self.thread2 = None
-        self.stopEvent = None
-
-        self.queue = Queue.Queue()
         # initialize the root window and image panel
         #CMOS camera panel
         self.panelA = None
@@ -83,16 +88,26 @@ class App(threading.Thread):
         self.release_pos = None
         self.expected_pupil_radius = 0
 
+
+        ##########################
+        ### PUPIL CAMERA PANEL ###
+        ##########################
+
         #button will take the current frame and save it to file
         snapshot_btn = tki.Button(self.root, text="Picture", command=self.takeSnapshot)
         snapshot_btn.grid(row = 3, column = 0, sticky = "w") 
 
+        #button to start recording pupil cam and resulting pupil detection data
         self.record = tki.IntVar()
         record_btn = tki.Checkbutton(self.root, text="Record", variable = self.record, command=self.triggerRecord, indicatoron = 0)
         record_btn.grid(row=3, column=1, sticky="w")
 
-        #reference button, shutter_state also used to detemine graph fitting 
-        #tied to function for changing shutter states
+
+        ###################
+        ### GRAPH PANEL ###
+        ###################
+
+        #reference button, shutter_state also used to determine graph fitting
         self.shutter_state = tki.IntVar()
         reference_btn = tki.Checkbutton(self.root, text = "Reference", variable = self.shutter_state, command = self.shutters, indicatoron = 0)
         reference_btn.grid(row = 3, column = 2, sticky = "w") 
@@ -112,7 +127,9 @@ class App(threading.Thread):
         SD_entry.grid(row = 3, column = 5, sticky = "w")
 
 
+        ###################
         ### MOTOR PANEL ###
+        ###################
 
         motor_label = tki.Label(self.root, text = "Motor Control")
         motor_label.grid(row = 4, column = 0, pady=10, sticky = "sw")
@@ -121,14 +138,9 @@ class App(threading.Thread):
         home_btn = tki.Button(self.root, text = "Home", command = self.motor.device.home)
         home_btn.grid(row = 5, column = 0, sticky = "nw")
 
-       	#distance and location variable for motor
+   		#entry for user to input distance to move motor forward or backward
         distance_var = tki.IntVar()
         distance_var.set(0)
-        self.location_var = tki.IntVar()
-        current_location = self.motor.device.send(60, 0)
-        self.location_var.set(current_location.data)
-
-   		#shows distance to move
         distance_label = tki.Label(self.root, text = "Distance to Move").grid(row = 4, column = 1, sticky = "sw")
         distance_entry = tki.Entry(self.root, textvariable = distance_var)
         distance_entry.grid(row = 5, column = 1, sticky = "nw")
@@ -141,39 +153,54 @@ class App(threading.Thread):
         back_button = tki.Button(self.root, text = "Backwards", command = lambda: self.move_motor_relative(-distance_var.get()))
         back_button.grid(row = 5, column = 3, sticky = "nw")
 
-
         #shows current location of motor on rails
+        self.location_var = tki.IntVar()
+        current_location = self.motor.device.send(60, 0)
+        self.location_var.set(current_location.data)
         location_label = tki.Label(self.root, text = "Position").grid(row = 4, column = 4, sticky = "sw")
         location_entry = tki.Entry(self.root, textvariable = self.location_var)
         location_entry.grid(row = 5, column = 4, sticky = "nw")
 
         #can enter a different location above and move motor to entered location
-        position_button = tki.Button(self.root, text =  "Move to Position", command = lambda: self.move_motor_abs(self.location_var.get()) )
+        position_button = tki.Button(self.root, text =  "Move to Position", command = lambda: self.move_motor_abs(self.location_var.get()))
         position_button.grid(row = 5, column = 5, sticky = "nw")
 
 
-        # Data collection: 
+        #############################
+        ### DATA COLLECTION PANEL ###
+        #############################
+
+        #entry for motor start position
         start_pos = tki.IntVar()
         start_pos.set(0)
         start_pos_label = tki.Label(self.root, text="Start(um)").grid(row = 6, column = 0)
         start_pos_entry = tki.Entry(self.root, textvariable = start_pos)
         start_pos_entry.grid(row = 7, column = 0)
         
+        #entry for number of pictures to take during scan
         num_frames = tki.IntVar()
         num_frames.set(0)
         num_frames_label = tki.Label(self.root, text="#Frames").grid(row = 6, column = 1)
         num_frames_entry = tki.Entry(self.root, textvariable = num_frames)
         num_frames_entry.grid(row = 7, column = 1)
         
+        #entry for how far motor moves in total
         scan_length = tki.IntVar()
         scan_length.set(0)
         scan_length_label = tki.Label(self.root, text="Length(um)").grid(row = 6, column = 2)
         scan_length_entry = tki.Entry(self.root, textvariable = scan_length)
         scan_length_entry.grid(row = 7, column = 2)
 
+        #button to start scan
        	scan_btn = tki.Button(self.root, text="Start Scan", command = lambda: self.slice_routine(start_pos.get(),scan_length.get(),num_frames.get()))
         scan_btn.grid(row = 7, column = 3)
 
+
+        ##########################################
+        ### VELOCITY AND ACCELERATION CONTROLS ###
+        ##########################################
+
+        #controls to enter and change velocity of motor
         velocity_var = tki.IntVar()
         velocity_var.set(0)
         velocity_label = tki.Label(self.root, text="Velocity").grid(row = 6, column = 4)
@@ -183,17 +210,24 @@ class App(threading.Thread):
         velocity_btn = tki.Button(self.root, text="Change velocity", command = self.set_velocity)
         velocity_btn.grid(row = 7, column = 5)
 
-        self.stopEvent = threading.Event()
+
+        #controls to enter and change acceleratin of motor
+        #TODO
+
+
+        #initialize and start threads
         self.thread = threading.Thread(target=self.videoLoop, args=())
         self.thread2 = threading.Thread(target=self.andorLoop, args=())
         self.thread.start()
         self.thread2.start()
 
-        # set a callback to handle when the window is closed
+        #set a callback to handle when the window is closed
         self.root.wm_title("Brillouin Scan Interface")
         self.root.wm_protocol("WM_DELETE_WINDOW", self.onClose)
 
 
+        #loop to update CMOS, EMCCD, and graph panels in GUI
+        self.queue = Queue.Queue()
         self.update_root()
 
 
