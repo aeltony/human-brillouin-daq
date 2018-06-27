@@ -273,7 +273,7 @@ class App(threading.Thread):
         while not self.stopEvent.is_set():
             print "videoLoop"
             # self.root.update()
-            self.frame.waitFrameCapture(3000)
+            self.frame.waitFrameCapture(1000)
             self.frame.queueFrameCapture()
             imgData = self.frame.getBufferByteData()
             image = np.ndarray(buffer = imgData,
