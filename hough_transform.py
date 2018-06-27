@@ -63,7 +63,7 @@ def detect_pupil_frame(frame,expected_radius=180,radius_range=15):
     frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
 
     frame = cv2.medianBlur(frame,15) #required for Hough transform
-    #frame_bgr = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+
     """
     ## Parameters for cv2.HoughCircles() ##
     image: 8-bit, single channel image. If working with a color image, convert to grayscale first.
@@ -99,15 +99,15 @@ def detect_pupil_frame(frame,expected_radius=180,radius_range=15):
         if min_circle_center is not None and min_circle_radius is not None:
             cv2.circle(frame_bgr,min_circle_center,min_circle_radius,(255,0,0),2)
             cv2.circle(frame_bgr,min_circle_center,2,(255,0,0),3)
-            print "center:",min_circle_center,"radius:",min_circle_radius
+            #print "center:",min_circle_center,"radius:",min_circle_radius
 
     else:
         pass 
-        print "No circles detected!"
+        #print "No circles detected!"
 
 
-    cv2.line(frame_bgr,(0,0),(0,15),(0,0,0),5) # vertical line
-    cv2.line(frame_bgr,(0,0),(100,0),(255,255,255),5) # horizontal line
+    #cv2.line(frame_bgr,(0,0),(0,15),(0,0,0),5) # vertical line
+    #cv2.line(frame_bgr,(0,0),(100,0),(255,255,255),5) # horizontal line
 
     return (frame_bgr.copy(),min_circle_center,min_circle_radius)
 

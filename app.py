@@ -135,7 +135,7 @@ class App(threading.Thread):
         motor_label.grid(row = 4, column = 0, pady=10, sticky = "sw")
 
         #home button for motor
-        home_btn = tki.Button(self.root, text = "Home", command = self.motor.device.home)
+        home_btn = tki.Button(self.root, text = "Home", command = lambda: self.move_motor_home())
         home_btn.grid(row = 5, column = 0, sticky = "nw")
 
    		#entry for user to input distance to move motor forward or backward
@@ -156,7 +156,7 @@ class App(threading.Thread):
         #shows current location of motor on rails
         self.location_var = tki.IntVar()
         current_location = self.motor.device.send(60, 0)
-        self.location_var.set(current_location.data)
+        self.location_var.set(int(current_location.data*3.072))
         location_label = tki.Label(self.root, text = "Position").grid(row = 4, column = 4, sticky = "sw")
         location_entry = tki.Entry(self.root, textvariable = self.location_var)
         location_entry.grid(row = 5, column = 4, sticky = "nw")
@@ -207,11 +207,11 @@ class App(threading.Thread):
         velocity_entry = tki.Entry(self.root, textvariable = velocity_var)
         velocity_entry.grid(row = 7, column = 4)
 
-        velocity_btn = tki.Button(self.root, text="Change velocity", command = self.set_velocity)
+        velocity_btn = tki.Button(self.root, text="Change velocity", command = lambda: self.set_velocity(velocity_var.get()))
         velocity_btn.grid(row = 7, column = 5)
 
 
-        #controls to enter and change acceleratin of motor
+        #controls to enter and change acceleration of motor
         #TODO
 
 
@@ -227,10 +227,13 @@ class App(threading.Thread):
 
 
         #loop to update CMOS, EMCCD, and graph panels in GUI
+        #All changes to GUI must happen in one thread so to achieve this: 
+        #videoLoop and andorLoop adds CMOS, EMCCD and graph images to a thread-safe queue
+        #This main Tkinter thread dequeues images one by one and updates their respective panels on the GUI
         self.queue = Queue.Queue()
         self.update_root()
 
-
+    #Dequeues items from self.queue and updates respective widgets in the GUI
     def update_root(self):
 
         while not self.stopEvent.is_set():
@@ -268,6 +271,7 @@ class App(threading.Thread):
 
 
         while not self.stopEvent.is_set():
+            print "videoLoop"
             # self.root.update()
             self.frame.waitFrameCapture(3000)
             self.frame.queueFrameCapture()
@@ -281,7 +285,6 @@ class App(threading.Thread):
 
             if self.click_pos is not None and self.release_pos is not None:
                 expected_pupil_radius = int(math.sqrt((self.click_pos[0] - self.release_pos[0])**2 + (self.click_pos[1] - self.release_pos[1])**2)/2)
-                #print "expected_pupil_radius", expected_pupil_radius
                 pupil_data = ht.detect_pupil_frame(image,expected_pupil_radius,15)
             else:
                 pupil_data = ht.detect_pupil_frame(image)
@@ -294,7 +297,6 @@ class App(threading.Thread):
                     self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
                     print "added frame to list"
                     
-
 
             self.image = pupil_data[0]
             # convets image to form used by tkinter
@@ -310,6 +312,7 @@ class App(threading.Thread):
      #graphing is called in a function graphLoop()
     def andorLoop(self):
         while not self.stopEvent.is_set():
+            print "andorLoop"
             self.andor.cam.StartAcquisition() 
             data = []                                            
             self.andor.cam.GetAcquiredData(data)
@@ -360,11 +363,6 @@ class App(threading.Thread):
                 continue
 
             self.image_andor = cropped
-
-            #if not take_scan:
-            #    self.andor_image_list.append(self.image_andor)
-            #    take_scan = True
-            
 
             image = imutils.resize(self.image_andor, width=1024)
             image = Image.fromarray(image)
@@ -466,8 +464,9 @@ class App(threading.Thread):
                 self.SD.set(measured_SD)
                 self.FSR.set(measured_FSR)
 
-        except:
-            print "Graph fitting failed"
+        except Exception as e:
+            print "Error is: ",str(e)
+            print "Stack trace: ", traceback.format_exc()
             pass
 
 
@@ -476,28 +475,31 @@ class App(threading.Thread):
         brillouin_plot.scatter(np.arange(1, len(self.brillouin_shift_list)+1), np.array(self.brillouin_shift_list))
 
         self.canvas.show()
-        self.canvas.get_tk_widgalet().grid(row = 1, column = 6, columnspan = 3, rowspan = 6)    #pack(side = "right")
+        self.canvas.get_tk_widget().grid(row = 1, column = 6, columnspan = 3, rowspan = 6)    #pack(side = "right")
 
+    # moves zaber motor to home position
+    def move_motor_home(self):
+        self.motor.device.home()
+        loc = self.motor.device.send(60,0)
+        self.location_var.set(int(loc.data*3.072))
 
-
-    # moves zabor motor, called on by forwars and backwards buttons
+    # moves zaber motor, called on by forwards and backwards buttons
     def move_motor_relative(self, distance):
-        reply = self.motor.device.move_rel(distance)
-        print reply.device_number, reply.command_number
+        self.motor.device.move_rel(int(distance/3.072))
         loc = self.motor.device.send(60, 0)
-        self.location_var.set(loc.data)
+        self.location_var.set(int(loc.data*3.072))
 
-     # moves zabor motor to a set location, called on above
+     # moves zaber motor to a set location, called on above
     def move_motor_abs(self, location):
-        self.motor.device.move_abs(location)
+        self.motor.device.move_abs(int(location/3.072))
         loc = self.motor.device.send(60, 0)
-        self.location_var.set(loc.data)
+        self.location_var.set(int(loc.data*3.072))
 
     def set_velocity(self, velocity):
         self.motor.device.send(42,velocity)
 
     def slice_routine(self, start_pos, length, num_steps):
-        self.motor.device.move_abs(start_pos)
+        self.move_motor_abs(start_pos)
         step_size = length // num_steps
         imlist = []
         for i in range(num_steps):
@@ -569,8 +571,6 @@ class App(threading.Thread):
                 self.pupil_data_list = []
 
 
-
-
     def onClick(self,event):
         self.click_pos = (event.x,event.y)
         self.release_pos = None
@@ -579,6 +579,7 @@ class App(threading.Thread):
     def onRelease(self,event):
         self.release_pos = (event.x,event.y)
         print self.release_pos
+
 
     # what happens when you exit out of application window
     # release connections to devices, closes application
@@ -601,7 +602,6 @@ class Graph(object):
         self.fig = Figure(figsize = (10, 10), dpi = 100)
         self.x_axis = np.arange(1,81)
 
-        
 def lorentzian(x, gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, constant_3):
     numerator_1 = 0.5*gamma_1*constant_1
     denominator_1 = math.pi * (x - x0_1) **2 + (0.5 * gamma_1)**2
