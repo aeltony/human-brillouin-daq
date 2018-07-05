@@ -258,7 +258,7 @@ class App(threading.Thread):
                         self.panelB.configure(image=item)
                         self.panelB.image = item
             except:
-                print "break"
+                #print "break"
                 break
         self.root.after(300,self.update_root)
 
@@ -271,7 +271,7 @@ class App(threading.Thread):
 
 
         while not self.stopEvent.is_set():
-            print "videoLoop"
+            #print "videoLoop"
             # self.root.update()
             self.frame.waitFrameCapture(1000)
             self.frame.queueFrameCapture()
@@ -312,7 +312,7 @@ class App(threading.Thread):
      #graphing is called in a function graphLoop()
     def andorLoop(self):
         while not self.stopEvent.is_set():
-            print "andorLoop"
+            #print "andorLoop"
             self.andor.cam.StartAcquisition() 
             data = []                                            
             self.andor.cam.GetAcquiredData(data)
@@ -356,7 +356,7 @@ class App(threading.Thread):
 
 
             cropped = scaled_8bit[loc-7:loc+7, mid-40:mid+40]
-            #self.graphLoop()
+            self.graphLoop()
             
             (h, w)= cropped.shape[:2]
             if w <= 0 or h <= 0:
@@ -407,6 +407,7 @@ class App(threading.Thread):
 
 
         copied_analyzed_row = np.array(self.analyzed_row)
+        print len(copied_analyzed_row)
 
         with self.lock:
             state = self.shutter_state.get() 
@@ -418,6 +419,8 @@ class App(threading.Thread):
                 constant_2 = np.amax(copied_analyzed_row[40:])
                 x0_1 = np.argmax(copied_analyzed_row[:40])
                 x0_2 = np.argmax(copied_analyzed_row[40:])+40
+                gamma_1 = None
+                gamma_2 = None
                 for i in xrange(40 - x0_1): 
                     half_max = constant_1/2
                     if copied_analyzed_row[:40][x0_1+i] <= half_max:
@@ -438,9 +441,9 @@ class App(threading.Thread):
                 length_bs +=1
 
                 
-                
-                popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
-                subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
+                if gamma_1 is not None and gamma_2 is not None:
+                    popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
+                    subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
                
             else:
                 constant_1 = np.amax(copied_analyzed_row[:20])
