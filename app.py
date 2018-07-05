@@ -75,7 +75,7 @@ class App(threading.Thread):
         self.panelA = None
         #EMCCD camera panel
         self.panelB = None
-        #where graphs are drwan
+        #where graphs are drawn
         self.canvas = FigureCanvasTkAgg(self.graph.fig, master = self.root)
 
         # GUI constants
@@ -254,9 +254,31 @@ class App(threading.Thread):
                         self.panelB = tki.Label(self.root,image=item)
                         self.panelB.image = item
                         self.panelB.grid(row = 0, column = 6, columnspan = 3) #pack(side="left", padx=10, pady=10)
+                        self.panelB.grid_propagate(0)
+                        self.panelB.configure(bg="red")
                     else:
                         self.panelB.configure(image=item)
                         self.panelB.image = item
+                
+                elif destination == "scatter":
+                    self.graph.fig.clf()
+                    subplot = self.graph.fig.add_subplot(211)
+                    subplot.set_xlabel("Pixel")
+                    subplot.set_ylabel("Counts")
+
+                    brillouin_plot = self.graph.fig.add_subplot(212)
+
+                    copied_analyzed_row,brillouin_shift_list = item
+                    subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
+                    brillouin_plot.scatter(np.arange(1, len(brillouin_shift_list)+1), np.array(brillouin_shift_list))
+
+                    self.canvas.show()
+                    self.canvas.get_tk_widget().grid(row = 1, column = 6, columnspan = 3, rowspan = 6)    #pack(side = "right")
+                
+                #elif destination == "plot":
+                #    popt = item
+                #    subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
+
             except:
                 #print "break"
                 break
@@ -356,8 +378,8 @@ class App(threading.Thread):
 
 
             cropped = scaled_8bit[loc-7:loc+7, mid-40:mid+40]
-            self.graphLoop()
-            
+            #self.graphLoop()
+            print(cropped.shape,loc)
             (h, w)= cropped.shape[:2]
             if w <= 0 or h <= 0:
                 continue
@@ -398,12 +420,12 @@ class App(threading.Thread):
      #plots graphs, similar to how graphs are plotted on andoru_test.py
      #uses figure so both plots can be shown at same time
     def graphLoop(self):
-        self.graph.fig.clf()
-        subplot = self.graph.fig.add_subplot(211)
-        subplot.set_xlabel("Pixel")
-        subplot.set_ylabel("Counts")
+        #self.graph.fig.clf()
+        #subplot = self.graph.fig.add_subplot(211)
+        #subplot.set_xlabel("Pixel")
+        #subplot.set_ylabel("Counts")
 
-        brillouin_plot = self.graph.fig.add_subplot(212)
+        #brillouin_plot = self.graph.fig.add_subplot(212)
 
 
         copied_analyzed_row = np.array(self.analyzed_row)
@@ -443,7 +465,8 @@ class App(threading.Thread):
                 
                 if gamma_1 is not None and gamma_2 is not None:
                     popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
-                    subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
+                    self.queue.put(("plot",popt.copy()))
+                    #subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
                
             else:
                 constant_1 = np.amax(copied_analyzed_row[:20])
@@ -461,7 +484,8 @@ class App(threading.Thread):
 
 
                 popt, pcov = curve_fit(lorentzian_reference, self.graph.x_axis, copied_analyzed_row, p0 = np.array([1, x0_1, constant_1, 1, x0_2, constant_2, 1, x0_3, constant_3, 1, x0_4, constant_4, constant_5]))
-                subplot.plot(self.graph.x_axis, lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
+                self.queue.put(("plot",popt.copy()))
+                #subplot.plot(self.graph.x_axis, lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
                 measured_SD = (2*self.PlasticBS - 2*self.WaterBS) / ((x0_4 - x0_1) + (x0_3 - x0_2))
                 measured_FSR = 2*self.PlasticBS - measured_SD*(x0_3 - x0_2)
                 self.SD.set(measured_SD)
@@ -473,12 +497,10 @@ class App(threading.Thread):
             pass
 
 
-            
-        subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
-        brillouin_plot.scatter(np.arange(1, len(self.brillouin_shift_list)+1), np.array(self.brillouin_shift_list))
+        self.queue.put(("scatter",(copied_analyzed_row.copy(),self.brillouin_shift_list[:])))
+        #subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
+        #brillouin_plot.scatter(np.arange(1, len(self.brillouin_shift_list)+1), np.array(self.brillouin_shift_list))
 
-        self.canvas.show()
-        self.canvas.get_tk_widget().grid(row = 1, column = 6, columnspan = 3, rowspan = 6)    #pack(side = "right")
 
     # moves zaber motor to home position
     def move_motor_home(self):
