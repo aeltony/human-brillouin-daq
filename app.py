@@ -252,12 +252,14 @@ class App(threading.Thread):
                 elif destination == "panelB":
                     if self.panelB is None:
                         self.panelB = tki.Label(self.root,image=item)
-                        self.panelB.image = item
-                        self.panelB.grid(row = 0, column = 6, columnspan = 3) #pack(side="left", padx=10, pady=10)
                         self.panelB.grid_propagate(0)
+                        self.panelB.image = item
+                        self.panelB.grid(row = 0, column = 6, columnspan = 3, sticky = "n") #pack(side="left", padx=10, pady=10)
+
                         self.panelB.configure(bg="red")
                     else:
                         self.panelB.configure(image=item)
+                        self.panelB.grid_propagate(0)
                         self.panelB.image = item
                 
                 elif destination == "scatter":
@@ -378,7 +380,7 @@ class App(threading.Thread):
 
 
             cropped = scaled_8bit[loc-7:loc+7, mid-40:mid+40]
-            #self.graphLoop()
+            self.graphLoop()
             print(cropped.shape,loc)
             (h, w)= cropped.shape[:2]
             if w <= 0 or h <= 0:
