@@ -27,19 +27,19 @@ import zaber.serial as zs
 # graphing imports
 import matplotlib
 matplotlib.use('TkAgg')
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from scipy.optimize import curve_fit
 
 class App(QtGui.QWidget):
 
+    #Lock used to halt other threads upon app closing
+    stop_event = threading.Event()
+    shutter_lock = threading.Lock()
+    record_lock = threading.Lock()
+
     def __init__(self):
         super(App,self).__init__()
-
-        #Lock used to halt other threads upon app closing
-        self.stopEvent = threading.Event()
-        self.shutter_lock = threading.Lock()
-        self.record_lock = threading.Lock()
 
         # initialize and access cameras, motors and graphs
         self.mako = device_init.Mako_Camera()
@@ -65,10 +65,10 @@ class App(QtGui.QWidget):
         self.expected_pupil_radius = 0
 
 
-        self.CMOSthread = CMOSthread(self.mako,self.stopEvent)
+        self.CMOSthread = CMOSthread(self.mako)
         self.CMOSthread.signal.connect(self.update_CMOS_panel)
 
-        self.EMCCDthread = EMCCDthread(self.andor,self.stopEvent)
+        self.EMCCDthread = EMCCDthread(self.andor)
         self.EMCCDthread.signal.connect(self.update_EMCCD_panel)
 
         ### CMOS AND EMCCD PANEL ###
@@ -98,7 +98,7 @@ class App(QtGui.QWidget):
         grid.addWidget(snapshot_btn,3,0)
         grid.addWidget(record_btn,3,1)
 
-        record_btn.clicked.connect(self.triggerRecord)
+        record_btn.clicked.connect(self.trigger_record)
 
         self.record_btn = record_btn
         
@@ -267,8 +267,10 @@ class App(QtGui.QWidget):
 
 
 
+    def trigger_record(self):
 
-    def triggerRecord(self):
+    	self.CMOSthread.trigger_record()
+
         if not self.record_btn.isChecked():
             with self.record_lock:
                 written_video_frames = 0
@@ -304,7 +306,7 @@ class App(QtGui.QWidget):
 
 
     def closeEvent(self,event):
-        self.stopEvent.set()
+        self.stop_event.set()
         self.mako.camera.runFeatureCommand('AcquisitionStop')
         self.mako.camera.endCapture()
         self.mako.camera.revokeAllFrames()
@@ -319,21 +321,28 @@ class CMOSthread(QtCore.QThread):
 
     signal = QtCore.pyqtSignal('PyQt_PyObject')
 
-    def __init__(self,camera,stopEvent):
+    def __init__(self,camera):
         super(CMOSthread,self).__init__()
 
         self.mako = camera
-        self.stopEvent = stopEvent
+        self.stop_event = App.stop_event
+        self.record_lock = App.record_lock
+
         self.frame = self.mako.camera.getFrame()
         self.frame.announceFrame()
         self.image = None
+
+        self.record = False
+
+    def trigger_record(self):
+    	self.record = not self.record
 
     def run(self):
         self.mako.camera.startCapture()
         self.mako.camera.runFeatureCommand('AcquisitionStart')
         self.frame.queueFrameCapture()
 
-        while not self.stopEvent.is_set():
+        while not self.stop_event.is_set():
             #print "videoLoop"
             # self.root.update()
             self.frame.waitFrameCapture(1000)
@@ -355,11 +364,13 @@ class CMOSthread(QtCore.QThread):
             pupil_data = ht.detect_pupil_frame(image)
 
 
-            if self.record_btn.isChecked():
+            if self.record:
                 with self.record_lock:
-                    self.pupil_video_frames.append(pupil_data[0].copy())
-                    self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
-                    print "added frame to list"
+
+                	if self.record: # extra if block covers for out incorrect ordering case
+	                    self.pupil_video_frames.append(pupil_data[0].copy())
+	                    self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
+	                    print "added frame to list"
                  
 
             self.image = image
@@ -376,18 +387,20 @@ class CMOSthread(QtCore.QThread):
         
 class EMCCDthread(QtCore.QThread):
 
-    signal = QtCore.pyqtSignal('PyQt_PyObject')
+    camera_signal = QtCore.pyqtSignal('PyQt_PyObject')
+    graph_signal = QtCore.pyqtSignal('PyQt_PyObject')
 
-    def __init__(self,camera,stopEvent):
+
+    def __init__(self,camera):
         super(EMCCDthread,self).__init__()
         self.andor = camera
-        self.stopEvent = stopEvent
+        self.stop_event = App.stop_event
         self.image = None
         self.image_andor = None
         self.analyzed_row = np.zeros(80)
 
     def run(self):
-        while not self.stopEvent.is_set():
+        while not self.stop_event.is_set():
             #print "andorLoop"
             self.andor.cam.StartAcquisition() 
             data = []                                            
@@ -451,6 +464,86 @@ class EMCCDthread(QtCore.QThread):
             self.signal.emit(qImage)
 
 
+    #plots graphs, similar to how graphs are plotted on andoru_test.py
+    #uses figure so both plots can be shown at same time
+    def graphLoop(self):
+        self.graph.fig.clf()
+        subplot = self.graph.fig.add_subplot(211)
+        subplot.set_xlabel("Pixel")
+        subplot.set_ylabel("Counts")
+
+        brillouin_plot = self.graph.fig.add_subplot(212)
+
+
+        copied_analyzed_row = np.array(self.analyzed_row)
+
+        with self.lock:
+            state = self.shutter_state.get() 
+
+        try:
+            
+            if state == 0:
+                constant_1 = np.amax(copied_analyzed_row[:40])
+                constant_2 = np.amax(copied_analyzed_row[40:])
+                x0_1 = np.argmax(copied_analyzed_row[:40])
+                x0_2 = np.argmax(copied_analyzed_row[40:])+40
+                for i in xrange(40 - x0_1): 
+                    half_max = constant_1/2
+                    if copied_analyzed_row[:40][x0_1+i] <= half_max:
+                        gamma_1 = i*2
+                        break
+                for j in xrange(40 - (x0_2 - 40)):
+                    half_max = constant_2/2
+                    if copied_analyzed_row[40:][x0_2 - 40+j] <= half_max:
+                        gamma_2 = j*2
+                        break
+
+                delta_peaks = x0_2 - x0_1
+                BS = (self.FSR.get() - delta_peaks*self.SD.get())/2
+                length_bs = len(self.brillouin_shift_list)
+                if length_bs >= 100:
+                    self.brillouin_shift_list = []
+                self.brillouin_shift_list.append(BS)
+                length_bs +=1
+
+                
+                
+                popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
+                subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
+               
+            else:
+                constant_1 = np.amax(copied_analyzed_row[:20])
+                constant_2 = np.amax(copied_analyzed_row[20:40])
+                constant_3 = np.amax(copied_analyzed_row[40:60])
+                constant_4 = np.amax(copied_analyzed_row[60:])
+                constant_5 = 100
+
+
+                x0_1 = np.argmax(copied_analyzed_row[:20])
+                x0_2 = np.argmax(copied_analyzed_row[20:40])+20
+                x0_3 = np.argmax(copied_analyzed_row[40:60])+40
+                x0_4 = np.argmax(copied_analyzed_row[60:])+60
+
+
+
+                popt, pcov = curve_fit(lorentzian_reference, self.graph.x_axis, copied_analyzed_row, p0 = np.array([1, x0_1, constant_1, 1, x0_2, constant_2, 1, x0_3, constant_3, 1, x0_4, constant_4, constant_5]))
+                subplot.plot(self.graph.x_axis, lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
+                measured_SD = (2*self.PlasticBS - 2*self.WaterBS) / ((x0_4 - x0_1) + (x0_3 - x0_2))
+                measured_FSR = 2*self.PlasticBS - measured_SD*(x0_3 - x0_2)
+                self.SD.set(measured_SD)
+                self.FSR.set(measured_FSR)
+
+        except:
+            print "Graph fitting failed"
+            pass
+
+
+            
+        subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
+        brillouin_plot.scatter(np.arange(1, len(self.brillouin_shift_list)+1), np.array(self.brillouin_shift_list))
+
+        self.canvas.show()
+        self.canvas.get_tk_widget().grid(row = 1, column = 6, columnspan = 3, rowspan = 6)    #pack(side = "right")
 
 
 class Graph(object):
