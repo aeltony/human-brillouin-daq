@@ -64,14 +64,13 @@ class App(QtGui.QWidget):
         self.release_pos = None
         self.expected_pupil_radius = 0
 
-
         self.CMOSthread = CMOSthread(self.mako)
         self.CMOSthread.camera_signal.connect(self.update_CMOS_panel)
 
         self.EMCCDthread = EMCCDthread(self.andor,self.graph)
         self.EMCCDthread.camera_signal.connect(self.update_EMCCD_panel)
         self.EMCCDthread.graph_signal.connect(self.update_graph_panel)
-        self.EMCCDthread.curve_signal.connect(self.draw_curve)
+        #self.EMCCDthread.curve_signal.connect(self.draw_curve)
 
         ### CMOS AND EMCCD PANEL ###
         self.cmos_panel = QtGui.QLabel()
@@ -79,6 +78,8 @@ class App(QtGui.QWidget):
         self.canvas = FigureCanvasQTAgg(self.graph.fig)
 
         self.mainUI()
+        self.EMCCDthread.define_entries(self.FSR_entry,self.SD_entry)
+
         self.CMOSthread.start()
         self.EMCCDthread.start()
 
@@ -164,9 +165,9 @@ class App(QtGui.QWidget):
         self.location_entry.setText(str(int(loc.data*3.072)))
 
         home_btn.clicked.connect(self.move_motor_home)
-        forward_btn.clicked.connect(self.move_motor_forward)
-        backward_btn.clicked.connect(self.move_motor_backward)
-        position_btn.clicked.connect(self.move_motor_abs)
+        forward_btn.clicked.connect(lambda: self.move_motor_forward(float(self.distance_entry.displayText())))
+        backward_btn.clicked.connect(lambda: self.move_motor_backward(-float(self.distance_entry.displayText())))
+        position_btn.clicked.connect(lambda: self.move_motor_abs(float(self.location_entry.displayText())))
 
         #############################
         ### DATA COLLECTION PANEL ###
@@ -230,18 +231,21 @@ class App(QtGui.QWidget):
         self.brillouin_plot = self.graph.fig.add_subplot(212)
 
         self.subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
-        self.brillouin_plot.scatter(np.arange(1, len(brillouin_shift_list)+1), np.array(brillouin_shift_list))
+        #self.brillouin_plot.scatter(np.arange(1, len(brillouin_shift_list)+1), np.array(brillouin_shift_list))
 
+        self.canvas.draw()
 
     def draw_curve(self,curve_data):
         if len(curve_data) == 2:
             popt, pcov = curve_data
-            subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
+            self.subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
         elif len(curve_data) == 4:
             popt, pcov, measured_SD, measured_FSR = curve_data
-            subplot.plot(self.graph.x_axis, lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
+            self.subplot.plot(self.graph.x_axis, lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
             self.SD_entry.setText(measured_SD)
             self.FSR_entry.setText(measured_FSR)
+
+        self.canvas.draw()
 
     #similar to shutters.py, called on by reference button 
     def shutters(self, close = False):
@@ -272,27 +276,48 @@ class App(QtGui.QWidget):
         self.location_entry.setText(str(int(loc.data*3.072)))
 
     # moves zaber motor, called on by forwards and backwards buttons
-    def move_motor_forward(self):
-        distance = float(self.distance_entry.displayText())
+    def move_motor_forward(self,distance):
         self.motor.device.move_rel(int(distance/3.072))
         loc = self.motor.device.send(60, 0)
         self.location_entry.setText(str(int(loc.data*3.072)))
 
-    def move_motor_backward(self):
-        distance = -float(self.distance_entry.displayText())
+    def move_motor_backward(self,distance):
         self.motor.device.move_rel(int(distance/3.072))
         loc = self.motor.device.send(60, 0)
         self.location_entry.setText(str(int(loc.data*3.072)))
 
      # moves zaber motor to a set location, called on above
-    def move_motor_abs(self):
-        location = float(self.location_entry.displayText())
-        self.motor.device.move_abs(int(location/3.072))
+    def move_motor_abs(self,pos):
+        self.motor.device.move_abs(int(pos/3.072))
         loc = self.motor.device.send(60, 0)
         self.location_entry.setText(str(int(loc.data*3.072)))
 
     def set_velocity(self, velocity):
         self.motor.device.send(42,velocity)
+
+    def slice_routine(self, start_pos, length, num_steps):
+        self.move_motor_abs(start_pos)
+        step_size = length // num_steps
+        imlist = []
+        for i in range(num_steps):
+            self.condition.acquire()
+            #print "slice_routine acquired lock"
+
+            self.move_motor_relative(step_size)            
+            #print "moving.. "
+            print self.location_var.get()
+            self.scan_ready = True
+            #print "waiting.."
+            self.condition.wait()
+
+            imlist.append(self.andor_export_image)
+            #print "adding images.."
+
+        print "length of imlist: ",len(imlist)
+        # Save images to tif file 
+        if len(imlist) != 0:
+            imlist[0].save("data_acquisition/scan.tif",compression="tiff_deflate",save_all=True,append_images=imlist[1:]) 
+            print "finished exporting as tif"
 
     def closeEvent(self,event):
         self.stop_event.set()
@@ -408,12 +433,15 @@ class EMCCDthread(QtCore.QThread):
     camera_signal = QtCore.pyqtSignal('PyQt_PyObject')
     graph_signal = QtCore.pyqtSignal('PyQt_PyObject')
     curve_signal = QtCore.pyqtSignal('PyQt_PyObject')
+    splice_signal = QtCore.pyqtSignal()
 
     def __init__(self,camera,graph):
         super(EMCCDthread,self).__init__()
 
         self.andor = camera
         self.graph = graph
+        self.FSR_entry = None
+        self.SD_entry = None
         self.stop_event = App.stop_event
 
         self.image = None
@@ -425,6 +453,10 @@ class EMCCDthread(QtCore.QThread):
 
     def trigger_shutter_state(self,state):
         self.shutter_state = state
+
+    def define_entries(self,FSR_entry,SD_entry):
+        self.FSR_entry = FSR_entry
+        self.SD_entry = SD_entry
 
     def run(self):
         while not self.stop_event.is_set():
@@ -498,8 +530,10 @@ class EMCCDthread(QtCore.QThread):
         copied_analyzed_row = np.array(self.analyzed_row)
 
         try:
+            FSR = float(self.FSR_entry.displayText())
+            SD = float(self.SD_entry.displayText())
             
-            if not shutter_state:
+            if not self.shutter_state:
                 constant_1 = np.amax(copied_analyzed_row[:40])
                 constant_2 = np.amax(copied_analyzed_row[40:])
                 x0_1 = np.argmax(copied_analyzed_row[:40])
@@ -516,7 +550,7 @@ class EMCCDthread(QtCore.QThread):
                         break
 
                 delta_peaks = x0_2 - x0_1
-                BS = (self.FSR.get() - delta_peaks*self.SD.get())/2
+                BS = (FSR - delta_peaks*SD)/2
                 length_bs = len(self.brillouin_shift_list)
                 if length_bs >= 100:
                     self.brillouin_shift_list = []
@@ -556,8 +590,8 @@ class EMCCDthread(QtCore.QThread):
                 #self.SD.set(measured_SD)
                 #self.FSR.set(measured_FSR)
 
-        except:
-            print "Graph fitting failed"
+        except Exception as e:
+            traceback.print_exc()
             pass
 
         graph_data = (copied_analyzed_row.copy(),self.brillouin_shift_list[:])
