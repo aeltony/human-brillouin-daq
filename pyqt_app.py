@@ -35,8 +35,6 @@ class App(QtGui.QWidget):
 
     #Lock used to halt other threads upon app closing
     stop_event = threading.Event()
-    shutter_lock = threading.Lock()
-    record_lock = threading.Lock()
 
     def __init__(self):
         super(App,self).__init__()
@@ -45,13 +43,15 @@ class App(QtGui.QWidget):
         self.mako = device_init.Mako_Camera()
         self.andor = device_init.Andor_Camera()
         self.motor = device_init.Motor()
-        #self.graph = Graph()
+        self.graph = Graph()
 
         self.brillouin_shift_list = []
         self.PlasticBS =  9.6051
         self.WaterBS = 5.1157
         self.shutter_state = False
 
+        self.subplot = None
+        self.brillouin_plot = None
         self.FSR = None
         self.SD = None
 
@@ -66,15 +66,17 @@ class App(QtGui.QWidget):
 
 
         self.CMOSthread = CMOSthread(self.mako)
-        self.CMOSthread.signal.connect(self.update_CMOS_panel)
+        self.CMOSthread.camera_signal.connect(self.update_CMOS_panel)
 
-        self.EMCCDthread = EMCCDthread(self.andor)
-        self.EMCCDthread.signal.connect(self.update_EMCCD_panel)
+        self.EMCCDthread = EMCCDthread(self.andor,self.graph)
+        self.EMCCDthread.camera_signal.connect(self.update_EMCCD_panel)
+        self.EMCCDthread.graph_signal.connect(self.update_graph_panel)
+        self.EMCCDthread.curve_signal.connect(self.draw_curve)
 
         ### CMOS AND EMCCD PANEL ###
         self.cmos_panel = QtGui.QLabel()
         self.emccd_panel = QtGui.QLabel()
-
+        self.canvas = FigureCanvasQTAgg(self.graph.fig)
 
         self.mainUI()
         self.CMOSthread.start()
@@ -85,7 +87,8 @@ class App(QtGui.QWidget):
         self.setLayout(grid)
 
         grid.addWidget(self.cmos_panel,0,0,3,7)
-        grid.addWidget(self.emccd_panel,0,7,3,6)
+        grid.addWidget(self.emccd_panel,0,7,1,6)
+        grid.addWidget(self.canvas,1,7,3,6)
         
         ##########################
         ### PUPIL CAMERA PANEL ###
@@ -98,13 +101,14 @@ class App(QtGui.QWidget):
         grid.addWidget(snapshot_btn,3,0)
         grid.addWidget(record_btn,3,1)
 
-        record_btn.clicked.connect(self.trigger_record)
+        record_btn.clicked.connect(self.CMOSthread.trigger_record)
 
         self.record_btn = record_btn
         
         ###################
         ### GRAPH PANEL ###
         ###################
+
         reference_btn = QtGui.QPushButton("Reference",self)
         reference_btn.setCheckable(True)
         FSR_label = QtGui.QLabel("FSR")
@@ -214,6 +218,30 @@ class App(QtGui.QWidget):
         self.emccd_panel.setPixmap(pixmap)
         self.emccd_panel.show()
 
+    def update_graph_panel(self,graph_data):
+
+        copied_analyzed_row, brillouin_shift_list = graph_data
+
+        self.graph.fig.clf()
+        self.subplot = self.graph.fig.add_subplot(211)
+        self.subplot.set_xlabel("Pixel")
+        self.subplot.set_ylabel("Counts")
+
+        self.brillouin_plot = self.graph.fig.add_subplot(212)
+
+        self.subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
+        self.brillouin_plot.scatter(np.arange(1, len(brillouin_shift_list)+1), np.array(brillouin_shift_list))
+
+
+    def draw_curve(self,curve_data):
+        if len(curve_data) == 2:
+            popt, pcov = curve_data
+            subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
+        elif len(curve_data) == 4:
+            popt, pcov, measured_SD, measured_FSR = curve_data
+            subplot.plot(self.graph.x_axis, lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
+            self.SD_entry.setText(measured_SD)
+            self.FSR_entry.setText(measured_FSR)
 
     #similar to shutters.py, called on by reference button 
     def shutters(self, close = False):
@@ -223,8 +251,9 @@ class App(QtGui.QWidget):
         usb312 = dll.piConnectShutter(byref(c2), 312)
         usb314 = dll.piConnectShutter(byref(c4), 314)
 
-        with self.shutter_lock:
-            state = self.reference_btn.isChecked()
+        
+        state = self.reference_btn.isChecked()
+        self.EMCCDthread.trigger_shutter_state(state)
             
         if state and not close:
             dll.piSetShutterState(0, usb312)
@@ -265,46 +294,6 @@ class App(QtGui.QWidget):
     def set_velocity(self, velocity):
         self.motor.device.send(42,velocity)
 
-
-
-    def trigger_record(self):
-
-    	self.CMOSthread.trigger_record()
-
-        if not self.record_btn.isChecked():
-            with self.record_lock:
-                written_video_frames = 0
-                pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
-                '-vcodec':'libx264',
-                '-b':'30000000',
-                '-vf':'setpts=4*PTS'
-                })
-
-                for frame in self.pupil_video_frames:
-                    pupil_video_writer.writeFrame(frame)
-                    written_video_frames += 1
-                    print "wrote a frame!"
-                
-                print "finished writing!"
-                pupil_video_writer.close()
-                self.pupil_video_frames = []
-
-        
-                frame_number = 0
-                pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
-
-                for frame_number in range(1,len(self.pupil_data_list)+1):
-                    pupil_center, pupil_radius = self.pupil_data_list[frame_number-1]
-                    if pupil_center is None or pupil_radius is None: 
-                        pupil_data_file.write("Frame: %d No pupil detected!\n" % frame_number)
-                    else: 
-                        pupil_data_file.write("Frame: %d Pupil Center: %s Pupil Radius: %d\n" % (frame_number,pupil_center,pupil_radius))
-
-                print "video frames vs data frames",written_video_frames,frame_number
-                pupil_data_file.close()
-                self.pupil_data_list = []
-
-
     def closeEvent(self,event):
         self.stop_event.set()
         self.mako.camera.runFeatureCommand('AcquisitionStop')
@@ -319,23 +308,56 @@ class App(QtGui.QWidget):
 
 class CMOSthread(QtCore.QThread):
 
-    signal = QtCore.pyqtSignal('PyQt_PyObject')
+    camera_signal = QtCore.pyqtSignal('PyQt_PyObject')
 
     def __init__(self,camera):
         super(CMOSthread,self).__init__()
 
         self.mako = camera
         self.stop_event = App.stop_event
-        self.record_lock = App.record_lock
 
         self.frame = self.mako.camera.getFrame()
         self.frame.announceFrame()
         self.image = None
 
         self.record = False
+        self.pupil_video_frames = []
+        self.pupil_data_list = []
 
     def trigger_record(self):
-    	self.record = not self.record
+
+        self.record = not self.record
+
+        if not self.record:
+            written_video_frames = 0
+            pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
+            '-vcodec':'libx264',
+            '-b':'30000000',
+            '-vf':'setpts=4*PTS'
+            })
+
+            for frame in self.pupil_video_frames:
+                pupil_video_writer.writeFrame(frame)
+                written_video_frames += 1
+                print "wrote a frame!"
+            
+            print "finished writing!"
+            pupil_video_writer.close()
+            self.pupil_video_frames = []
+
+            frame_number = 0
+            pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
+
+            for frame_number in range(1,len(self.pupil_data_list)+1):
+                pupil_center, pupil_radius = self.pupil_data_list[frame_number-1]
+                if pupil_center is None or pupil_radius is None: 
+                    pupil_data_file.write("Frame: %d No pupil detected!\n" % frame_number)
+                else: 
+                    pupil_data_file.write("Frame: %d Pupil Center: %s Pupil Radius: %d\n" % (frame_number,pupil_center,pupil_radius))
+
+            print "video frames vs data frames",written_video_frames,frame_number
+            pupil_data_file.close()
+            self.pupil_data_list = []
 
     def run(self):
         self.mako.camera.startCapture()
@@ -363,15 +385,11 @@ class CMOSthread(QtCore.QThread):
             """
             pupil_data = ht.detect_pupil_frame(image)
 
-
-            if self.record:
-                with self.record_lock:
-
-                	if self.record: # extra if block covers for out incorrect ordering case
-	                    self.pupil_video_frames.append(pupil_data[0].copy())
-	                    self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
-	                    print "added frame to list"
-                 
+            if self.record: # extra check to cover for out incorrect ordering case
+                self.pupil_video_frames.append(pupil_data[0].copy())
+                self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
+                print "added frame to list"
+            
 
             self.image = image
             # convets image to form used by tkinter
@@ -381,7 +399,7 @@ class CMOSthread(QtCore.QThread):
             bytesPerLine = 3 * width
             qImage = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
 
-            self.signal.emit(qImage)
+            self.camera_signal.emit(qImage)
             #image = Image.fromarray(image)
             #image = ImageTk.PhotoImage(image)
         
@@ -389,15 +407,24 @@ class EMCCDthread(QtCore.QThread):
 
     camera_signal = QtCore.pyqtSignal('PyQt_PyObject')
     graph_signal = QtCore.pyqtSignal('PyQt_PyObject')
+    curve_signal = QtCore.pyqtSignal('PyQt_PyObject')
 
-
-    def __init__(self,camera):
+    def __init__(self,camera,graph):
         super(EMCCDthread,self).__init__()
+
         self.andor = camera
+        self.graph = graph
         self.stop_event = App.stop_event
+
         self.image = None
         self.image_andor = None
         self.analyzed_row = np.zeros(80)
+
+        self.brillouin_shift_list = []
+        self.shutter_state = False
+
+    def trigger_shutter_state(self,state):
+        self.shutter_state = state
 
     def run(self):
         while not self.stop_event.is_set():
@@ -446,7 +473,7 @@ class EMCCDthread(QtCore.QThread):
 
 
             cropped = scaled_8bit[loc-7:loc+7, mid-40:mid+40]
-            #self.graphLoop()
+            self.graphLoop()
 
             (h, w)= cropped.shape[:2]
             if w <= 0 or h <= 0:
@@ -461,28 +488,18 @@ class EMCCDthread(QtCore.QThread):
             bytesPerLine = 3 * width
             qImage = QtGui.QImage(bgr_image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
 
-            self.signal.emit(qImage)
+            self.camera_signal.emit(qImage)
 
 
     #plots graphs, similar to how graphs are plotted on andoru_test.py
     #uses figure so both plots can be shown at same time
     def graphLoop(self):
-        self.graph.fig.clf()
-        subplot = self.graph.fig.add_subplot(211)
-        subplot.set_xlabel("Pixel")
-        subplot.set_ylabel("Counts")
-
-        brillouin_plot = self.graph.fig.add_subplot(212)
-
 
         copied_analyzed_row = np.array(self.analyzed_row)
 
-        with self.lock:
-            state = self.shutter_state.get() 
-
         try:
             
-            if state == 0:
+            if not shutter_state:
                 constant_1 = np.amax(copied_analyzed_row[:40])
                 constant_2 = np.amax(copied_analyzed_row[40:])
                 x0_1 = np.argmax(copied_analyzed_row[:40])
@@ -509,8 +526,10 @@ class EMCCDthread(QtCore.QThread):
                 
                 
                 popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
-                subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
+                #subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
                
+                curve_data = (popt,pcov)
+                self.curve_signal.emit(curve_data)
             else:
                 constant_1 = np.amax(copied_analyzed_row[:20])
                 constant_2 = np.amax(copied_analyzed_row[20:40])
@@ -527,23 +546,22 @@ class EMCCDthread(QtCore.QThread):
 
 
                 popt, pcov = curve_fit(lorentzian_reference, self.graph.x_axis, copied_analyzed_row, p0 = np.array([1, x0_1, constant_1, 1, x0_2, constant_2, 1, x0_3, constant_3, 1, x0_4, constant_4, constant_5]))
-                subplot.plot(self.graph.x_axis, lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
+                #subplot.plot(self.graph.x_axis, lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
                 measured_SD = (2*self.PlasticBS - 2*self.WaterBS) / ((x0_4 - x0_1) + (x0_3 - x0_2))
                 measured_FSR = 2*self.PlasticBS - measured_SD*(x0_3 - x0_2)
-                self.SD.set(measured_SD)
-                self.FSR.set(measured_FSR)
+                
+                curve_data = (popt,pcov,measured_SD,measured_FSR)
+                self.curve_signal.emit(curve_data)
+
+                #self.SD.set(measured_SD)
+                #self.FSR.set(measured_FSR)
 
         except:
             print "Graph fitting failed"
             pass
 
-
-            
-        subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
-        brillouin_plot.scatter(np.arange(1, len(self.brillouin_shift_list)+1), np.array(self.brillouin_shift_list))
-
-        self.canvas.show()
-        self.canvas.get_tk_widget().grid(row = 1, column = 6, columnspan = 3, rowspan = 6)    #pack(side = "right")
+        graph_data = (copied_analyzed_row.copy(),self.brillouin_shift_list[:])
+        self.graph_signal.emit(graph_data)
 
 
 class Graph(object):
