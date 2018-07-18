@@ -35,6 +35,7 @@ class App(QtGui.QWidget):
 
     #Lock used to halt other threads upon app closing
     stop_event = threading.Event()
+    condition = threading.Condition()
 
     def __init__(self):
         super(App,self).__init__()
@@ -78,7 +79,7 @@ class App(QtGui.QWidget):
         self.canvas = FigureCanvasQTAgg(self.graph.fig)
 
         self.mainUI()
-        self.EMCCDthread.define_entries(self.FSR_entry,self.SD_entry)
+        self.EMCCDthread.set_entries(self.FSR_entry,self.SD_entry)
 
         self.CMOSthread.start()
         self.EMCCDthread.start()
@@ -257,7 +258,7 @@ class App(QtGui.QWidget):
 
         
         state = self.reference_btn.isChecked()
-        self.EMCCDthread.trigger_shutter_state(state)
+        self.EMCCDthread.set_shutter_state(state)
             
         if state and not close:
             dll.piSetShutterState(0, usb312)
@@ -298,26 +299,21 @@ class App(QtGui.QWidget):
     def slice_routine(self, start_pos, length, num_steps):
         self.move_motor_abs(start_pos)
         step_size = length // num_steps
-        imlist = []
+
         for i in range(num_steps):
             self.condition.acquire()
             #print "slice_routine acquired lock"
 
             self.move_motor_relative(step_size)            
             #print "moving.. "
-            print self.location_var.get()
-            self.scan_ready = True
+            
+            self.EMCCDthread.trigger_scan()
+
             #print "waiting.."
             self.condition.wait()
 
-            imlist.append(self.andor_export_image)
-            #print "adding images.."
+        self.EMCCDthread.export_images()
 
-        print "length of imlist: ",len(imlist)
-        # Save images to tif file 
-        if len(imlist) != 0:
-            imlist[0].save("data_acquisition/scan.tif",compression="tiff_deflate",save_all=True,append_images=imlist[1:]) 
-            print "finished exporting as tif"
 
     def closeEvent(self,event):
         self.stop_event.set()
@@ -433,7 +429,6 @@ class EMCCDthread(QtCore.QThread):
     camera_signal = QtCore.pyqtSignal('PyQt_PyObject')
     graph_signal = QtCore.pyqtSignal('PyQt_PyObject')
     curve_signal = QtCore.pyqtSignal('PyQt_PyObject')
-    splice_signal = QtCore.pyqtSignal()
 
     def __init__(self,camera,graph):
         super(EMCCDthread,self).__init__()
@@ -443,18 +438,31 @@ class EMCCDthread(QtCore.QThread):
         self.FSR_entry = None
         self.SD_entry = None
         self.stop_event = App.stop_event
+        self.condition = App.condition
 
         self.image = None
         self.image_andor = None
         self.analyzed_row = np.zeros(80)
 
+        self.export_list = []
         self.brillouin_shift_list = []
         self.shutter_state = False
+        self.scan_ready = False
 
-    def trigger_shutter_state(self,state):
+    def trigger_scan(self):
+        self.scan_ready = True
+
+    def export_images(self):
+        if len(self.export_list) != 0:
+            self.export_list[0].save("data_acquisition/scan.tif",compression="tiff_deflate",save_all=True,append_images=self.export_list[1:]) 
+            self.export_list = []
+            print "finished exporting as tif"
+
+
+    def set_shutter_state(self,state):
         self.shutter_state = state
 
-    def define_entries(self,FSR_entry,SD_entry):
+    def set_entries(self,FSR_entry,SD_entry):
         self.FSR_entry = FSR_entry
         self.SD_entry = SD_entry
 
@@ -464,10 +472,7 @@ class EMCCDthread(QtCore.QThread):
             self.andor.cam.StartAcquisition() 
             data = []                                            
             self.andor.cam.GetAcquiredData(data)
-            """
-            while data == []:
-                continue
-            """
+
             image_array = np.array(data, dtype = np.uint16)
             maximum = image_array.max()
 
@@ -483,17 +488,17 @@ class EMCCDthread(QtCore.QThread):
             scaled_image = scaled_image.astype(int)
             scaled_8bit= np.array(scaled_image, dtype = np.uint8)
 
-            """
+            
             if self.scan_ready: 
                 self.condition.acquire()
-                #print "andorloop lock acquired"
-                self.andor_export_image = Image.fromarray(scaled_8bit)
+
+                self.export_list.append(Image.fromarray(scaled_8bit))
+
                 self.scan_ready = False
+
                 self.condition.notifyAll()
-                #print "threads notified"
                 self.condition.release()
-                #print "lock released"
-            """
+            
 
             loc = np.argmax(scaled_8bit)/512
             left_right = scaled_8bit[loc].argsort()[-10:][::-1]
