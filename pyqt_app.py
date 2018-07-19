@@ -37,12 +37,14 @@ class App(QtGui.QWidget):
     stop_event = threading.Event()
     condition = threading.Condition()
 
+    radius_signal = QtCore.pyqtSignal('PyQt_PyObject')
+
     def __init__(self):
         super(App,self).__init__()
 
         # initialize and access cameras, motors and graphs
         self.mako = device_init.Mako_Camera()
-        self.andor = device_init.Andor_Camera()
+        #self.andor = device_init.Andor_Camera()
         self.motor = device_init.Motor()
         self.graph = Graph()
 
@@ -61,16 +63,15 @@ class App(QtGui.QWidget):
         self.andor_image_list = []
         self.scan_ready = False
         self.andor_export_image = None
-        self.click_pos = None
-        self.release_pos = None
-        self.expected_pupil_radius = 0
+        self.expected_pupil_radius = None
+        self.popup = None
 
         self.CMOSthread = CMOSthread(self.mako)
         self.CMOSthread.camera_signal.connect(self.update_CMOS_panel)
 
-        self.EMCCDthread = EMCCDthread(self.andor,self.graph)
-        self.EMCCDthread.camera_signal.connect(self.update_EMCCD_panel)
-        self.EMCCDthread.graph_signal.connect(self.update_graph_panel)
+        #self.EMCCDthread = EMCCDthread(self.andor,self.motor,self.graph)
+        #self.EMCCDthread.camera_signal.connect(self.update_EMCCD_panel)
+        #self.EMCCDthread.graph_signal.connect(self.update_graph_panel)
         #self.EMCCDthread.curve_signal.connect(self.draw_curve)
 
         ### CMOS AND EMCCD PANEL ###
@@ -79,19 +80,25 @@ class App(QtGui.QWidget):
         self.canvas = FigureCanvasQTAgg(self.graph.fig)
 
         self.mainUI()
-        self.EMCCDthread.set_entries(self.FSR_entry,self.SD_entry)
+        #self.EMCCDthread.set_entries(self.FSR_entry,self.SD_entry)
 
         self.CMOSthread.start()
-        self.EMCCDthread.start()
+        #self.EMCCDthread.start()
 
     def mainUI(self):
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
 
-        grid.addWidget(self.cmos_panel,0,0,3,7)
+        grid.addWidget(self.cmos_panel,0,0,3,6)
         grid.addWidget(self.emccd_panel,0,7,1,6)
         grid.addWidget(self.canvas,1,7,3,6)
         
+        radius_btn = QtGui.QPushButton("Draw radius estimate",self)
+        
+        grid.addWidget(radius_btn,2,6)
+
+        radius_btn.clicked.connect(self.CMOSthread.ask_radius_estimate)
+
         ##########################
         ### PUPIL CAMERA PANEL ###
         ##########################
@@ -100,6 +107,7 @@ class App(QtGui.QWidget):
         record_btn = QtGui.QPushButton("Record",self)
         record_btn.setCheckable(True)
 
+        cam_x,cam_y = (3,0)
         grid.addWidget(snapshot_btn,3,0)
         grid.addWidget(record_btn,3,1)
 
@@ -176,19 +184,22 @@ class App(QtGui.QWidget):
 
         start_pos_label = QtGui.QLabel("Start Position(um)")
         start_pos = QtGui.QLineEdit()
-        num_frames_label = QtGui.QLabel("#Frames")
-        num_frames = QtGui.QLineEdit()
         scan_length_label = QtGui.QLabel("Length(um)")
         scan_length = QtGui.QLineEdit()
+        num_frames_label = QtGui.QLabel("#Frames")
+        num_frames = QtGui.QLineEdit()
         scan_btn = QtGui.QPushButton("Start Scan",self)
 
         grid.addWidget(start_pos_label,6,0)
         grid.addWidget(start_pos,7,0)
-        grid.addWidget(num_frames_label,6,1)
-        grid.addWidget(num_frames,7,1)
-        grid.addWidget(scan_length_label,6,2)
-        grid.addWidget(scan_length,7,2)
+        grid.addWidget(scan_length_label,6,1)
+        grid.addWidget(scan_length,7,1)
+        grid.addWidget(num_frames_label,6,2)
+        grid.addWidget(num_frames,7,2)
+
         grid.addWidget(scan_btn,7,3)
+
+        scan_btn.clicked.connect(lambda: self.EMCCDthread.scan(float(start_pos.displayText()),float(scan_length.displayText()),float(num_frames.displayText())))
 
         #######################################
         ### VELOCITY AND ACCELERATION PANEL ###
@@ -283,7 +294,7 @@ class App(QtGui.QWidget):
         self.location_entry.setText(str(int(loc.data*3.072)))
 
     def move_motor_backward(self,distance):
-        self.motor.device.move_rel(int(distance/3.072))
+        self.motor.device.move_rel(-int(distance/3.072))
         loc = self.motor.device.send(60, 0)
         self.location_entry.setText(str(int(loc.data*3.072)))
 
@@ -296,25 +307,6 @@ class App(QtGui.QWidget):
     def set_velocity(self, velocity):
         self.motor.device.send(42,velocity)
 
-    def slice_routine(self, start_pos, length, num_steps):
-        self.move_motor_abs(start_pos)
-        step_size = length // num_steps
-
-        for i in range(num_steps):
-            self.condition.acquire()
-            #print "slice_routine acquired lock"
-
-            self.move_motor_relative(step_size)            
-            #print "moving.. "
-            
-            self.EMCCDthread.trigger_scan()
-
-            #print "waiting.."
-            self.condition.wait()
-
-        self.EMCCDthread.export_images()
-
-
     def closeEvent(self,event):
         self.stop_event.set()
         self.mako.camera.runFeatureCommand('AcquisitionStop')
@@ -325,6 +317,50 @@ class App(QtGui.QWidget):
         self.shutters(close = True)
 
         event.accept() #closes the application
+
+
+class Popup(QtGui.QWidget):
+
+    def __init__(self,qImage_snapshot):
+        super(Popup,self).__init__()
+
+        grid = QtGui.QGridLayout()
+        self.setLayout(grid)
+        
+        #self.radius_signal = App.radius_signal
+
+        pixmap = QtGui.QPixmap.fromImage(qImage_snapshot)
+
+        instructions = QtGui.QLabel("Draw a diameter in the image below across the pupil, then press Done")
+        done_btn = QtGui.QPushButton("Done")
+        image_panel = QtGui.QLabel()
+        image_panel.setPixmap(pixmap)
+
+        grid.addWidget(instructions,0,0)
+        grid.addWidget(done_btn,0,1)
+        grid.addWidget(image_panel,1,0,1,2)
+
+        done_btn.clicked.connect(self.done)
+
+        self.click_pos = None
+        self.release_pos = None
+
+        self.setWindowTitle("Set Radius Estimate")
+        self.move(50,50)
+        self.show()
+
+    def mousePressEvent(self,QMouseEvent):
+        self.click_pos = (QMouseEvent.x(),QMouseEvent.y())
+        print self.click_pos
+
+    def mouseReleaseEvent(self,QMouseEvent):
+        self.release_pos = (QMouseEvent.x(),QMouseEvent.y())
+        print self.release_pos
+
+    def done(self):
+        expected_pupil_radius = int(math.sqrt((self.click_pos[0] - self.release_pos[0])**2 + (self.click_pos[1] - self.release_pos[1])**2)/2)
+        self.emit(QtCore.SIGNAL('set_radius_estimate(int)'),expected_pupil_radius)
+        self.close()
 
 
 class CMOSthread(QtCore.QThread):
@@ -339,11 +375,20 @@ class CMOSthread(QtCore.QThread):
 
         self.frame = self.mako.camera.getFrame()
         self.frame.announceFrame()
-        self.image = None
+        self.qImage = None
 
         self.record = False
         self.pupil_video_frames = []
         self.pupil_data_list = []
+        self.expected_pupil_radius = None
+        self.popup = None
+
+    def ask_radius_estimate(self):
+        self.popup = Popup(self.qImage)
+        self.connect(self.popup,QtCore.SIGNAL("set_radius_estimate(int)"),self.set_radius_estimate)
+
+    def set_radius_estimate(self,expected_pupil_radius):
+        self.expected_pupil_radius = expected_pupil_radius
 
     def trigger_record(self):
 
@@ -351,10 +396,11 @@ class CMOSthread(QtCore.QThread):
 
         if not self.record:
             written_video_frames = 0
-            pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
+            pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video3.avi',outputdict={
             '-vcodec':'libx264',
             '-b':'30000000',
-            '-vf':'setpts=4*PTS'
+            '-vf':'setpts=4*PTS',
+            '-r':'10'
             })
 
             for frame in self.pupil_video_frames:
@@ -391,36 +437,35 @@ class CMOSthread(QtCore.QThread):
             self.frame.waitFrameCapture(1000)
             self.frame.queueFrameCapture()
             imgData = self.frame.getBufferByteData()
-            image = np.ndarray(buffer = imgData,
+            image_arr = np.ndarray(buffer = imgData,
                            dtype = np.uint8,
                            shape = (self.frame.height,self.frame.width))    
             
             
-            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-            """
-            if self.click_pos is not None and self.release_pos is not None:
-                expected_pupil_radius = int(math.sqrt((self.click_pos[0] - self.release_pos[0])**2 + (self.click_pos[1] - self.release_pos[1])**2)/2)
-                pupil_data = ht.detect_pupil_frame(image,expected_pupil_radius,15)
+            resized_image = imutils.resize(image_arr, width=1024)
+            plain_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2BGR)
+
+            if self.expected_pupil_radius is None:
+                pupil_data = ht.detect_pupil_frame(plain_image)
             else:
-                pupil_data = ht.detect_pupil_frame(image)
-            """
-            pupil_data = ht.detect_pupil_frame(image)
+                pupil_data = ht.detect_pupil_frame(plain_image,self.expected_pupil_radius,15)
 
             if self.record: # extra check to cover for out incorrect ordering case
+
                 self.pupil_video_frames.append(pupil_data[0].copy())
                 self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
                 print "added frame to list"
             
 
-            self.image = image
             # convets image to form used by tkinter
-            image = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2RGB)
-            image = imutils.resize(image, width=1024)
+            image = cv2.cvtColor(pupil_data[0].copy(), cv2.COLOR_BGR2RGB)
             height, width, channel = image.shape
             bytesPerLine = 3 * width
             qImage = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
 
-            self.camera_signal.emit(qImage)
+            self.qImage = qImage
+            
+            self.camera_signal.emit(self.qImage)
             #image = Image.fromarray(image)
             #image = ImageTk.PhotoImage(image)
         
@@ -430,10 +475,11 @@ class EMCCDthread(QtCore.QThread):
     graph_signal = QtCore.pyqtSignal('PyQt_PyObject')
     curve_signal = QtCore.pyqtSignal('PyQt_PyObject')
 
-    def __init__(self,camera,graph):
+    def __init__(self,camera,motor,graph):
         super(EMCCDthread,self).__init__()
 
         self.andor = camera
+        self.motor = motor
         self.graph = graph
         self.FSR_entry = None
         self.SD_entry = None
@@ -449,15 +495,23 @@ class EMCCDthread(QtCore.QThread):
         self.shutter_state = False
         self.scan_ready = False
 
-    def trigger_scan(self):
-        self.scan_ready = True
+    
+    def scan(self, start_pos, length, num_steps):
+        self.motor.device.move_abs(int(start_pos/3.072))
+        step_size = length // num_steps
 
-    def export_images(self):
+        self.export_list.append(self.acquire_frame()) #initial frame
+
+        for i in range(num_steps):
+
+            self.motor.device.move_rel(int(step_size/3.072))           
+            
+            self.export_list.append(self.acquire_frame())
+
         if len(self.export_list) != 0:
             self.export_list[0].save("data_acquisition/scan.tif",compression="tiff_deflate",save_all=True,append_images=self.export_list[1:]) 
             self.export_list = []
             print "finished exporting as tif"
-
 
     def set_shutter_state(self,state):
         self.shutter_state = state
@@ -466,51 +520,46 @@ class EMCCDthread(QtCore.QThread):
         self.FSR_entry = FSR_entry
         self.SD_entry = SD_entry
 
+    def acquire_frame(self):
+        self.andor.cam.StartAcquisition() 
+        data = []                                            
+        self.andor.cam.GetAcquiredData(data)
+
+        image_array = np.array(data, dtype = np.uint16)
+        maximum = image_array.max()
+
+        proper_image = np.reshape(image_array, (-1, 512))
+
+        scaled_image = proper_image*(255.0/maximum)
+        scaled_image = scaled_image.astype(int)
+
+        return np.array(scaled_image, dtype = np.uint8)
+
     def run(self):
         while not self.stop_event.is_set():
             #print "andorLoop"
-            self.andor.cam.StartAcquisition() 
-            data = []                                            
-            self.andor.cam.GetAcquiredData(data)
-
-            image_array = np.array(data, dtype = np.uint16)
-            maximum = image_array.max()
-
-
-            graph_data = list(data)  
-            graph_array = np.array(graph_data, dtype = np.uint16)
-            reshaped_graph = np.reshape(graph_array, (-1, 512))
-
-            proper_image = np.reshape(image_array, (-1, 512))
-
-
-            scaled_image = proper_image*(255.0/maximum)
-            scaled_image = scaled_image.astype(int)
-            scaled_8bit= np.array(scaled_image, dtype = np.uint8)
-
-            
-            if self.scan_ready: 
-                self.condition.acquire()
-
-                self.export_list.append(Image.fromarray(scaled_8bit))
-
-                self.scan_ready = False
-
-                self.condition.notifyAll()
-                self.condition.release()
-            
+            scaled_8bit = self.acquire_frame()   
 
             loc = np.argmax(scaled_8bit)/512
             left_right = scaled_8bit[loc].argsort()[-10:][::-1]
             left_right.sort()
             mid = int((left_right[0]+left_right[-1])/2)
 
-        
+            ################
+            ### GRAPHING ###
+            ################
+
+            graph_data = list(data)
+            graph_array = np.array(graph_data, dtype = np.uint16)
+            reshaped_graph = np.reshape(graph_array, (-1,512))
+
             self.analyzed_row = reshaped_graph[loc][mid-40:mid+40]
 
+            self.graphLoop()
+
+            ###############
 
             cropped = scaled_8bit[loc-7:loc+7, mid-40:mid+40]
-            self.graphLoop()
 
             (h, w)= cropped.shape[:2]
             if w <= 0 or h <= 0:
@@ -520,7 +569,7 @@ class EMCCDthread(QtCore.QThread):
 
             image = imutils.resize(self.image_andor, width=1024)
             bgr_image = cv2.cvtColor(image,cv2.COLOR_GRAY2BGR)
-            print bgr_image.shape
+
             height, width, channel = bgr_image.shape
             bytesPerLine = 3 * width
             qImage = QtGui.QImage(bgr_image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
