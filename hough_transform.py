@@ -53,7 +53,7 @@ def objective_function(center,radius,expected_center,expected_radius):
     return center_diff + 5*radius_diff
 
         
-def detect_pupil_frame(frame,expected_radius=180,radius_range=15):
+def detect_pupil_frame(frame,dp=3,minDist=1000,param1=1,param2=320,radius_range=15,expected_radius=180):
 
     if frame is None: 
         return

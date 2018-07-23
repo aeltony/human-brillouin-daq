@@ -13,7 +13,6 @@ import traceback
 from PyQt4 import QtGui,QtCore
 from PIL import Image
 from PIL import ImageTk
-import Queue
 import hough_transform as ht
 import skvideo.io as skv
 
@@ -89,13 +88,21 @@ class App(QtGui.QWidget):
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
 
-        grid.addWidget(self.cmos_panel,0,0,3,6)
-        grid.addWidget(self.emccd_panel,0,7,1,6)
-        grid.addWidget(self.canvas,1,7,3,6)
+
+
+        grid.addWidget(self.cmos_panel,0,1,3,5)
+        grid.addWidget(self.emccd_panel,0,6,1,5)
+        grid.addWidget(self.canvas,1,6,3,5)
         
+        #############################
+        ### PUPIL DETECTION PANEL ###
+        #############################
+
+        det_x, det_y = (0,0)
+
         radius_btn = QtGui.QPushButton("Draw radius estimate",self)
         
-        grid.addWidget(radius_btn,2,6)
+        grid.addWidget(radius_btn, det_x+2, det_y+6)
 
         radius_btn.clicked.connect(self.CMOSthread.ask_radius_estimate)
 
@@ -103,13 +110,14 @@ class App(QtGui.QWidget):
         ### PUPIL CAMERA PANEL ###
         ##########################
 
+        cam_x, cam_y = (3,0)
+
         snapshot_btn = QtGui.QPushButton("Take Picture",self)
         record_btn = QtGui.QPushButton("Record",self)
         record_btn.setCheckable(True)
 
-        cam_x,cam_y = (3,0)
-        grid.addWidget(snapshot_btn,3,0)
-        grid.addWidget(record_btn,3,1)
+        grid.addWidget(snapshot_btn, cam_x, cam_y)
+        grid.addWidget(record_btn, cam_x, cam_y+1)
 
         record_btn.clicked.connect(self.CMOSthread.trigger_record)
 
@@ -119,6 +127,8 @@ class App(QtGui.QWidget):
         ### GRAPH PANEL ###
         ###################
 
+        graph_x, graph_y = (3,2)
+
         reference_btn = QtGui.QPushButton("Reference",self)
         reference_btn.setCheckable(True)
         FSR_label = QtGui.QLabel("FSR")
@@ -126,11 +136,11 @@ class App(QtGui.QWidget):
         SD_label = QtGui.QLabel("SD")
         SD_entry = QtGui.QLineEdit()
 
-        grid.addWidget(reference_btn,3,2)
-        grid.addWidget(FSR_label,3,3)
-        grid.addWidget(FSR_entry,3,4)
-        grid.addWidget(SD_label,3,5)
-        grid.addWidget(SD_entry,3,6)
+        grid.addWidget(reference_btn, graph_x, graph_y)
+        grid.addWidget(FSR_label, graph_x, graph_y+1)
+        grid.addWidget(FSR_entry, graph_x, graph_y+2)
+        grid.addWidget(SD_label, graph_x, graph_y+3)
+        grid.addWidget(SD_entry, graph_x, graph_y+4)
 
         FSR_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         SD_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
@@ -147,6 +157,8 @@ class App(QtGui.QWidget):
         ### MOTOR PANEL ###
         ###################
 
+        motor_x, motor_y = (4,0)
+
         motor_label = QtGui.QLabel("Motor Control")
         home_btn = QtGui.QPushButton("Home",self)
         distance_label = QtGui.QLabel("Distance To Move")
@@ -157,15 +169,15 @@ class App(QtGui.QWidget):
         location_entry = QtGui.QLineEdit()
         position_btn = QtGui.QPushButton("Move To Location",self)
 
-        grid.addWidget(motor_label,4,0)
-        grid.addWidget(home_btn,5,0)
-        grid.addWidget(distance_label,4,1)
-        grid.addWidget(distance_entry,5,1)
-        grid.addWidget(forward_btn,5,2)
-        grid.addWidget(backward_btn,5,3)
-        grid.addWidget(location_label,4,5)
-        grid.addWidget(location_entry,5,5)
-        grid.addWidget(position_btn,5,6)
+        grid.addWidget(motor_label, motor_x, motor_y)
+        grid.addWidget(home_btn, motor_x+1, motor_y)
+        grid.addWidget(distance_label, motor_x, motor_y+1)
+        grid.addWidget(distance_entry, motor_x+1, motor_y+1)
+        grid.addWidget(forward_btn, motor_x+1, motor_y+2)
+        grid.addWidget(backward_btn, motor_x+1, motor_y+3)
+        grid.addWidget(location_label, motor_x, motor_y+5)
+        grid.addWidget(location_entry, motor_x+1, motor_y+5)
+        grid.addWidget(position_btn, motor_x+1, motor_y+6)
 
         self.distance_entry = distance_entry
         self.distance_entry.setText("0")
@@ -182,6 +194,8 @@ class App(QtGui.QWidget):
         ### DATA COLLECTION PANEL ###
         #############################
 
+        data_x, data_y = (6,0)
+
         start_pos_label = QtGui.QLabel("Start Position(um)")
         start_pos = QtGui.QLineEdit()
         scan_length_label = QtGui.QLabel("Length(um)")
@@ -190,14 +204,13 @@ class App(QtGui.QWidget):
         num_frames = QtGui.QLineEdit()
         scan_btn = QtGui.QPushButton("Start Scan",self)
 
-        grid.addWidget(start_pos_label,6,0)
-        grid.addWidget(start_pos,7,0)
-        grid.addWidget(scan_length_label,6,1)
-        grid.addWidget(scan_length,7,1)
-        grid.addWidget(num_frames_label,6,2)
-        grid.addWidget(num_frames,7,2)
-
-        grid.addWidget(scan_btn,7,3)
+        grid.addWidget(start_pos_label, data_x, data_y)
+        grid.addWidget(start_pos, data_x+1, data_y)
+        grid.addWidget(scan_length_label, data_x, data_y+1)
+        grid.addWidget(scan_length, data_x+1, data_y+1)
+        grid.addWidget(num_frames_label, data_x, data_y+2)
+        grid.addWidget(num_frames, data_x+1, data_y+2)
+        grid.addWidget(scan_btn, data_x+1, data_y+3)
 
         scan_btn.clicked.connect(lambda: self.EMCCDthread.scan(float(start_pos.displayText()),float(scan_length.displayText()),float(num_frames.displayText())))
 
@@ -205,13 +218,15 @@ class App(QtGui.QWidget):
         ### VELOCITY AND ACCELERATION PANEL ###
         #######################################
 
+        vel_x, vel_y = (6,4)
+
         velocity_label = QtGui.QLabel("Velocity")
         velocity = QtGui.QLineEdit()
         velocity_btn = QtGui.QPushButton("Change Velocity",self)
 
-        grid.addWidget(velocity_label,6,4)
-        grid.addWidget(velocity,7,4)
-        grid.addWidget(velocity_btn,7,5)
+        grid.addWidget(velocity_label, vel_x, vel_y)
+        grid.addWidget(velocity, vel_x+1, vel_y)
+        grid.addWidget(velocity_btn, vel_x+1, vel_y+1)
 
 
         self.setWindowTitle("Brillouin Scan Interface")
@@ -332,13 +347,24 @@ class Popup(QtGui.QWidget):
         pixmap = QtGui.QPixmap.fromImage(qImage_snapshot)
 
         instructions = QtGui.QLabel("Draw a diameter in the image below across the pupil, then press Done")
+        self.dp_entry = QtGui.QLineEdit()
+        self.minDist_entry = QtGui.QLineEdit()
+        self.param1_entry = QtGui.QLineEdit()
+        self.param2_entry = QtGui.QLineEdit()
+        self.range_entry = QtGui.QLineEdit()
+
         done_btn = QtGui.QPushButton("Done")
         image_panel = QtGui.QLabel()
         image_panel.setPixmap(pixmap)
 
         grid.addWidget(instructions,0,0)
-        grid.addWidget(done_btn,0,1)
-        grid.addWidget(image_panel,1,0,1,2)
+        grid.addWidget(self.dp_entry,1,0)
+        grid.addWidget(self.minDist_entry,1,1)
+        grid.addWidget(self.param1_entry,1,2)
+        grid.addWidget(self.param2_entry,1,3)
+        grid.addWidget(self.range_entry,1,4)
+        grid.addWidget(done_btn,1,5)
+        grid.addWidget(image_panel,2,0,1,6)
 
         done_btn.clicked.connect(self.done)
 
@@ -359,7 +385,9 @@ class Popup(QtGui.QWidget):
 
     def done(self):
         expected_pupil_radius = int(math.sqrt((self.click_pos[0] - self.release_pos[0])**2 + (self.click_pos[1] - self.release_pos[1])**2)/2)
-        self.emit(QtCore.SIGNAL('set_radius_estimate(int)'),expected_pupil_radius)
+        export_data = (float(self.dp_entry.displayText()), int(self.minDist_entry.displayText()), int(self.param1_entry.displayText()),
+            int(self.param2_entry.displayText()), it(self.range_entry.displayText()), expected_pupil_radius)
+        self.emit(QtCore.SIGNAL('set_radius_estimate(PyQt_PyObject)'),export_data)
         self.close()
 
 
@@ -380,15 +408,20 @@ class CMOSthread(QtCore.QThread):
         self.record = False
         self.pupil_video_frames = []
         self.pupil_data_list = []
+        self.dp = None
+        self.minDist = None
+        self.param1 = None
+        self.param2 = None
+        self.radius = None
         self.expected_pupil_radius = None
         self.popup = None
 
     def ask_radius_estimate(self):
         self.popup = Popup(self.qImage)
-        self.connect(self.popup,QtCore.SIGNAL("set_radius_estimate(int)"),self.set_radius_estimate)
+        self.connect(self.popup,QtCore.SIGNAL("set_radius_estimate(PyQt_PyObject)"),self.set_radius_estimate)
 
-    def set_radius_estimate(self,expected_pupil_radius):
-        self.expected_pupil_radius = expected_pupil_radius
+    def set_radius_estimate(self,params):
+        self.dp, self.minDist, self.param1, self.param2, self.radius, self.expected_pupil_radius = params
 
     def trigger_record(self):
 
@@ -448,7 +481,7 @@ class CMOSthread(QtCore.QThread):
             if self.expected_pupil_radius is None:
                 pupil_data = ht.detect_pupil_frame(plain_image)
             else:
-                pupil_data = ht.detect_pupil_frame(plain_image,self.expected_pupil_radius,15)
+                pupil_data = ht.detect_pupil_frame(plain_image,self.dp,self.minDist,self.param1,self.param2,self.radius,self.expected_pupil_radius)
 
             if self.record: # extra check to cover for out incorrect ordering case
 
