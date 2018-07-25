@@ -89,7 +89,6 @@ class App(QtGui.QWidget):
         self.setLayout(grid)
 
 
-
         grid.addWidget(self.cmos_panel,0,1,3,5)
         grid.addWidget(self.emccd_panel,0,6,1,5)
         grid.addWidget(self.canvas,1,6,3,5)
