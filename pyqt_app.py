@@ -39,11 +39,12 @@ class App(QtGui.QWidget):
 
         #Lock used to halt other threads upon app closing
         self.stop_event = threading.Event()
+        self.andor_lock = threading.Lock()
         self.condition = threading.Condition()
 
         # initialize and access cameras, motors and graphs
         self.mako = device_init.Mako_Camera()
-        #self.andor = device_init.Andor_Camera()
+        self.andor = device_init.Andor_Camera()
         self.motor = device_init.Motor()
         self.graph = Graph()
 
@@ -68,8 +69,8 @@ class App(QtGui.QWidget):
         self.CMOSthread = CMOSthread(self)
         self.connect(self.CMOSthread,QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),self.update_CMOS_panel)
 
-        #self.EMCCDthread = EMCCDthread(self.andor,self.motor,self.graph)
-        #self.EMCCDthread.camera_signal.connect(self.update_EMCCD_panel)
+        self.EMCCDthread = EMCCDthread(self)
+        self.connect(self.EMCCDthread,QtCore.SIGNAL('update_EMCCD_panel(PyQt_PyObject)'),self.update_EMCCD_panel)
         #self.EMCCDthread.graph_signal.connect(self.update_graph_panel)
         #self.EMCCDthread.curve_signal.connect(self.draw_curve)
 
@@ -79,19 +80,17 @@ class App(QtGui.QWidget):
         self.canvas = FigureCanvasQTAgg(self.graph.fig)
 
         self.mainUI()
-        #self.EMCCDthread.set_entries(self.FSR_entry,self.SD_entry)
 
         self.CMOSthread.start()
-        #self.EMCCDthread.start()
+        self.EMCCDthread.start()
 
     def mainUI(self):
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
 
-
         grid.addWidget(self.cmos_panel,0,2,11,7)
         grid.addWidget(self.emccd_panel,0,9,3,5)
-        grid.addWidget(self.canvas,1,9,3,5)
+        grid.addWidget(self.canvas,3,9,3,5)
 
         self.cmos_panel.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
         
@@ -278,7 +277,7 @@ class App(QtGui.QWidget):
         data_grid.addWidget(num_frames, 1, 2)
         data_grid.addWidget(scan_btn, 1, 3)
 
-        scan_btn.clicked.connect(lambda: self.EMCCDthread.scan(float(start_pos.displayText()),float(scan_length.displayText()),float(num_frames.displayText())))
+        scan_btn.clicked.connect(lambda: self.EMCCDthread.scan(float(start_pos.displayText()),float(scan_length.displayText()),int(num_frames.displayText())))
 
         #######################################
         ### VELOCITY AND ACCELERATION PANEL ###
@@ -292,7 +291,6 @@ class App(QtGui.QWidget):
         velocity_btn = QtGui.QPushButton("Change Velocity",self)
 
         vel_grid.addWidget(velocity_label, 0, 0)
-        vel_grid.addWidget(velocity, 1, 0)
         vel_grid.addWidget(velocity_btn, 1, 1)
 
 
@@ -351,7 +349,6 @@ class App(QtGui.QWidget):
 
         
         state = self.reference_btn.isChecked()
-        self.EMCCDthread.set_shutter_state(state)
             
         if state and not close:
             dll.piSetShutterState(0, usb312)
@@ -573,20 +570,19 @@ class CMOSthread(QtCore.QThread):
         
 class EMCCDthread(QtCore.QThread):
 
-    camera_signal = QtCore.pyqtSignal('PyQt_PyObject')
     graph_signal = QtCore.pyqtSignal('PyQt_PyObject')
     curve_signal = QtCore.pyqtSignal('PyQt_PyObject')
 
-    def __init__(self,camera,motor,graph):
+    def __init__(self,app):
         super(EMCCDthread,self).__init__()
 
-        self.andor = camera
-        self.motor = motor
-        self.graph = graph
-        self.FSR_entry = None
-        self.SD_entry = None
-        self.stop_event = App.stop_event
-        self.condition = App.condition
+        self.app = app
+        self.andor = app.andor
+        self.motor = app.motor
+        self.graph = app.graph
+        self.stop_event = app.stop_event
+        self.andor_lock = app.andor_lock
+        self.condition = app.condition
 
         self.image = None
         self.image_andor = None
@@ -594,10 +590,26 @@ class EMCCDthread(QtCore.QThread):
 
         self.export_list = []
         self.brillouin_shift_list = []
-        self.shutter_state = False
         self.scan_ready = False
 
-    
+    def acquire_frame(self):
+        with self.andor_lock:
+            self.andor.cam.StartAcquisition() 
+            data = []                                            
+            self.andor.cam.GetAcquiredData(data)
+
+        image_array = np.array(data, dtype = np.uint16)  
+        maximum = image_array.max()
+        proper_image = np.reshape(image_array, (-1, 512))
+        scaled_image = proper_image*(255.0/maximum)
+        scaled_image = scaled_image.astype(int)
+        scaled_8bit = np.array(scaled_image, dtype = np.uint8)
+
+        image = imutils.resize(scaled_8bit, width=1024)
+        image = Image.fromarray(image)
+
+        return image
+
     def scan(self, start_pos, length, num_steps):
         self.motor.device.move_abs(int(start_pos/3.072))
         step_size = length // num_steps
@@ -615,32 +627,24 @@ class EMCCDthread(QtCore.QThread):
             self.export_list = []
             print "finished exporting as tif"
 
-    def set_shutter_state(self,state):
-        self.shutter_state = state
-
-    def set_entries(self,FSR_entry,SD_entry):
-        self.FSR_entry = FSR_entry
-        self.SD_entry = SD_entry
-
-    def acquire_frame(self):
-        self.andor.cam.StartAcquisition() 
-        data = []                                            
-        self.andor.cam.GetAcquiredData(data)
-
-        image_array = np.array(data, dtype = np.uint16)
-        maximum = image_array.max()
-
-        proper_image = np.reshape(image_array, (-1, 512))
-
-        scaled_image = proper_image*(255.0/maximum)
-        scaled_image = scaled_image.astype(int)
-
-        return np.array(scaled_image, dtype = np.uint8)
 
     def run(self):
         while not self.stop_event.is_set():
+            with self.andor_lock:
+                self.andor.cam.StartAcquisition() 
+                data = []                                            
+                self.andor.cam.GetAcquiredData(data)
+
+            image_array = np.array(data, dtype = np.uint16)
             #print "andorLoop"
-            scaled_8bit = self.acquire_frame()   
+
+            maximum = image_array.max()
+
+            proper_image = np.reshape(image_array, (-1, 512))
+
+            scaled_image = proper_image*(255.0/maximum)
+            scaled_image = scaled_image.astype(int)
+            scaled_8bit = np.array(scaled_image, dtype = np.uint8)
 
             loc = np.argmax(scaled_8bit)/512
             left_right = scaled_8bit[loc].argsort()[-10:][::-1]
@@ -657,7 +661,7 @@ class EMCCDthread(QtCore.QThread):
 
             self.analyzed_row = reshaped_graph[loc][mid-40:mid+40]
 
-            self.graphLoop()
+            #self.graphLoop()
 
             ###############
 
@@ -676,8 +680,7 @@ class EMCCDthread(QtCore.QThread):
             bytesPerLine = 3 * width
             qImage = QtGui.QImage(bgr_image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
 
-            self.camera_signal.emit(qImage)
-
+            self.emit(QtCore.SIGNAL('update_EMCCD_panel(PyQt_PyObject)'),qImage)
 
     #plots graphs, similar to how graphs are plotted on andoru_test.py
     #uses figure so both plots can be shown at same time
@@ -686,10 +689,10 @@ class EMCCDthread(QtCore.QThread):
         copied_analyzed_row = np.array(self.analyzed_row)
 
         try:
-            FSR = float(self.FSR_entry.displayText())
-            SD = float(self.SD_entry.displayText())
+            FSR = float(self.app.FSR_entry.displayText())
+            SD = float(self.app.SD_entry.displayText())
             
-            if not self.shutter_state:
+            if not self.reference_btn.isChecked():
                 constant_1 = np.amax(copied_analyzed_row[:40])
                 constant_2 = np.amax(copied_analyzed_row[40:])
                 x0_1 = np.argmax(copied_analyzed_row[:40])
