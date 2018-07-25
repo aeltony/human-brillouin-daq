@@ -89,19 +89,48 @@ class App(QtGui.QWidget):
         self.setLayout(grid)
 
 
-        grid.addWidget(self.cmos_panel,0,1,3,5)
-        grid.addWidget(self.emccd_panel,0,6,1,5)
-        grid.addWidget(self.canvas,1,6,3,5)
+        grid.addWidget(self.cmos_panel,0,2,9,7)
+        grid.addWidget(self.emccd_panel,0,9,3,5)
+        grid.addWidget(self.canvas,1,9,3,5)
         
         #############################
         ### PUPIL DETECTION PANEL ###
         #############################
 
-        det_x, det_y = (0,0)
+        det_grid = QtGui.QGridLayout()
+        grid.addLayout(det_grid,0,0,9,2)
 
+        detection_panel_label = QtGui.QLabel("Pupil Detection Panel")
+        dp_label = QtGui.QLabel("dp =")
+        dp_entry = QtGui.QLineEdit()
+        minDist_label = QtGui.QLabel("minDist =")
+        minDist_entry = QtGui.QLineEdit()
+        param1_label = QtGui.QLabel("param1 =")
+        param1_entry = QtGui.QLineEdit()
+        param2_label = QtGui.QLabel("param2 =")
+        param2_entry = QtGui.QLineEdit()
+        range_label = QtGui.QLabel("range =")
+        range_entry = QtGui.QLineEdit()
+        radius_label = QtGui.QLabel("radius =")
+        radius_entry = QtGui.QLineEdit()
         radius_btn = QtGui.QPushButton("Draw radius estimate",self)
+        apply_btn = QtGui.QPushButton("Apply Changes")
         
-        grid.addWidget(radius_btn, det_x+2, det_y+6)
+        det_grid.addWidget(detection_panel_label, 0, 0, 1, 2)
+        det_grid.addWidget(dp_label, 1, 0)
+        det_grid.addWidget(dp_entry, 1, 1)
+        det_grid.addWidget(minDist_label, 2, 0)
+        det_grid.addWidget(minDist_entry, 2, 1)
+        det_grid.addWidget(param1_label, 3, 0)
+        det_grid.addWidget(param1_entry, 3, 1)
+        det_grid.addWidget(param2_label, 4, 0)
+        det_grid.addWidget(param2_entry, 4, 1)
+        det_grid.addWidget(range_label, 5, 0)
+        det_grid.addWidget(range_entry, 5, 1)
+        det_grid.addWidget(radius_label, 6, 0)
+        det_grid.addWidget(radius_entry, 6, 1)
+        det_grid.addWidget(radius_btn, 7, 0, 1, 2)
+        det_grid.addWidget(apply_btn, 8, 0, 1, 2)
 
         radius_btn.clicked.connect(self.CMOSthread.ask_radius_estimate)
 
@@ -109,14 +138,16 @@ class App(QtGui.QWidget):
         ### PUPIL CAMERA PANEL ###
         ##########################
 
-        cam_x, cam_y = (3,0)
+        cam_grid = QtGui.QGridLayout()
+        grid.addLayout(cam_grid,9,2,1,2)
+        cam_r, cam_c = (9,2)
 
         snapshot_btn = QtGui.QPushButton("Take Picture",self)
         record_btn = QtGui.QPushButton("Record",self)
         record_btn.setCheckable(True)
 
-        grid.addWidget(snapshot_btn, cam_x, cam_y)
-        grid.addWidget(record_btn, cam_x, cam_y+1)
+        cam_grid.addWidget(snapshot_btn, 0, 0)
+        cam_grid.addWidget(record_btn, 0, 1)
 
         record_btn.clicked.connect(self.CMOSthread.trigger_record)
 
@@ -126,7 +157,8 @@ class App(QtGui.QWidget):
         ### GRAPH PANEL ###
         ###################
 
-        graph_x, graph_y = (3,2)
+        graph_grid = QtGui.QGridLayout()
+        grid.addLayout(graph_grid,9,4,1,5)
 
         reference_btn = QtGui.QPushButton("Reference",self)
         reference_btn.setCheckable(True)
@@ -135,11 +167,11 @@ class App(QtGui.QWidget):
         SD_label = QtGui.QLabel("SD")
         SD_entry = QtGui.QLineEdit()
 
-        grid.addWidget(reference_btn, graph_x, graph_y)
-        grid.addWidget(FSR_label, graph_x, graph_y+1)
-        grid.addWidget(FSR_entry, graph_x, graph_y+2)
-        grid.addWidget(SD_label, graph_x, graph_y+3)
-        grid.addWidget(SD_entry, graph_x, graph_y+4)
+        graph_grid.addWidget(reference_btn, 0, 0)
+        graph_grid.addWidget(FSR_label, 0, 1)
+        graph_grid.addWidget(FSR_entry, 0, 2)
+        graph_grid.addWidget(SD_label, 0, 3)
+        graph_grid.addWidget(SD_entry, 0, 4)
 
         FSR_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         SD_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
@@ -156,7 +188,8 @@ class App(QtGui.QWidget):
         ### MOTOR PANEL ###
         ###################
 
-        motor_x, motor_y = (4,0)
+        motor_grid = QtGui.QGridLayout()
+        grid.addLayout(motor_grid,10,2,2,7)
 
         motor_label = QtGui.QLabel("Motor Control")
         home_btn = QtGui.QPushButton("Home",self)
@@ -168,15 +201,15 @@ class App(QtGui.QWidget):
         location_entry = QtGui.QLineEdit()
         position_btn = QtGui.QPushButton("Move To Location",self)
 
-        grid.addWidget(motor_label, motor_x, motor_y)
-        grid.addWidget(home_btn, motor_x+1, motor_y)
-        grid.addWidget(distance_label, motor_x, motor_y+1)
-        grid.addWidget(distance_entry, motor_x+1, motor_y+1)
-        grid.addWidget(forward_btn, motor_x+1, motor_y+2)
-        grid.addWidget(backward_btn, motor_x+1, motor_y+3)
-        grid.addWidget(location_label, motor_x, motor_y+5)
-        grid.addWidget(location_entry, motor_x+1, motor_y+5)
-        grid.addWidget(position_btn, motor_x+1, motor_y+6)
+        motor_grid.addWidget(motor_label, 0, 0)
+        motor_grid.addWidget(home_btn, 1, 0)
+        motor_grid.addWidget(distance_label, 0, 1)
+        motor_grid.addWidget(distance_entry, 1, 1)
+        motor_grid.addWidget(forward_btn, 1, 2)
+        motor_grid.addWidget(backward_btn, 1, 3)
+        motor_grid.addWidget(location_label, 0, 5)
+        motor_grid.addWidget(location_entry, 1, 5)
+        motor_grid.addWidget(position_btn, 1, 6)
 
         self.distance_entry = distance_entry
         self.distance_entry.setText("0")
@@ -193,7 +226,8 @@ class App(QtGui.QWidget):
         ### DATA COLLECTION PANEL ###
         #############################
 
-        data_x, data_y = (6,0)
+        data_grid = QtGui.QGridLayout()
+        grid.addLayout(data_grid,12,2,2,4)
 
         start_pos_label = QtGui.QLabel("Start Position(um)")
         start_pos = QtGui.QLineEdit()
@@ -203,13 +237,13 @@ class App(QtGui.QWidget):
         num_frames = QtGui.QLineEdit()
         scan_btn = QtGui.QPushButton("Start Scan",self)
 
-        grid.addWidget(start_pos_label, data_x, data_y)
-        grid.addWidget(start_pos, data_x+1, data_y)
-        grid.addWidget(scan_length_label, data_x, data_y+1)
-        grid.addWidget(scan_length, data_x+1, data_y+1)
-        grid.addWidget(num_frames_label, data_x, data_y+2)
-        grid.addWidget(num_frames, data_x+1, data_y+2)
-        grid.addWidget(scan_btn, data_x+1, data_y+3)
+        data_grid.addWidget(start_pos_label, 0, 0)
+        data_grid.addWidget(start_pos, 1, 0)
+        data_grid.addWidget(scan_length_label, 0, 1)
+        data_grid.addWidget(scan_length, 1, 1)
+        data_grid.addWidget(num_frames_label, 0, 2)
+        data_grid.addWidget(num_frames, 1, 2)
+        data_grid.addWidget(scan_btn, 1, 3)
 
         scan_btn.clicked.connect(lambda: self.EMCCDthread.scan(float(start_pos.displayText()),float(scan_length.displayText()),float(num_frames.displayText())))
 
@@ -217,15 +251,16 @@ class App(QtGui.QWidget):
         ### VELOCITY AND ACCELERATION PANEL ###
         #######################################
 
-        vel_x, vel_y = (6,4)
+        vel_grid = QtGui.QGridLayout()
+        grid.addLayout(vel_grid,12,6,2,2)
 
         velocity_label = QtGui.QLabel("Velocity")
         velocity = QtGui.QLineEdit()
         velocity_btn = QtGui.QPushButton("Change Velocity",self)
 
-        grid.addWidget(velocity_label, vel_x, vel_y)
-        grid.addWidget(velocity, vel_x+1, vel_y)
-        grid.addWidget(velocity_btn, vel_x+1, vel_y+1)
+        vel_grid.addWidget(velocity_label, 0, 0)
+        vel_grid.addWidget(velocity, 1, 0)
+        vel_grid.addWidget(velocity_btn, 1, 1)
 
 
         self.setWindowTitle("Brillouin Scan Interface")
