@@ -32,14 +32,14 @@ from scipy.optimize import curve_fit
 
 class App(QtGui.QWidget):
 
-    #Lock used to halt other threads upon app closing
-    stop_event = threading.Event()
-    condition = threading.Condition()
-
     radius_signal = QtCore.pyqtSignal('PyQt_PyObject')
 
     def __init__(self):
         super(App,self).__init__()
+
+        #Lock used to halt other threads upon app closing
+        self.stop_event = threading.Event()
+        self.condition = threading.Condition()
 
         # initialize and access cameras, motors and graphs
         self.mako = device_init.Mako_Camera()
@@ -65,8 +65,8 @@ class App(QtGui.QWidget):
         self.expected_pupil_radius = None
         self.popup = None
 
-        self.CMOSthread = CMOSthread(self.mako)
-        self.CMOSthread.camera_signal.connect(self.update_CMOS_panel)
+        self.CMOSthread = CMOSthread(self)
+        self.connect(self.CMOSthread,QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),self.update_CMOS_panel)
 
         #self.EMCCDthread = EMCCDthread(self.andor,self.motor,self.graph)
         #self.EMCCDthread.camera_signal.connect(self.update_EMCCD_panel)
@@ -89,16 +89,18 @@ class App(QtGui.QWidget):
         self.setLayout(grid)
 
 
-        grid.addWidget(self.cmos_panel,0,2,9,7)
+        grid.addWidget(self.cmos_panel,0,2,11,7)
         grid.addWidget(self.emccd_panel,0,9,3,5)
         grid.addWidget(self.canvas,1,9,3,5)
+
+        self.cmos_panel.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
         
         #############################
         ### PUPIL DETECTION PANEL ###
         #############################
 
         det_grid = QtGui.QGridLayout()
-        grid.addLayout(det_grid,0,0,9,2)
+        grid.addLayout(det_grid,0,0,11,2)
 
         detection_panel_label = QtGui.QLabel("Pupil Detection Panel")
         blur_label = QtGui.QLabel("medianBlur =")
@@ -135,7 +137,16 @@ class App(QtGui.QWidget):
         det_grid.addWidget(radius_label, 7, 0)
         det_grid.addWidget(radius_entry, 7, 1)
         det_grid.addWidget(radius_btn, 8, 0, 1, 2)
-        det_grid.addWidget(apply_btn, 9, 0, 1, 2)
+        det_grid.addWidget(default_btn, 9, 0, 1, 2)
+        det_grid.addWidget(apply_btn, 10, 0, 1, 2)
+
+        blur_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        dp_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        minDist_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        param1_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        param2_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        range_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        radius_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
 
         blur_entry.setText("15")
         dp_entry.setText("3.0")
@@ -154,17 +165,15 @@ class App(QtGui.QWidget):
         self.radius_entry = radius_entry
 
         radius_btn.clicked.connect(self.CMOSthread.ask_radius_estimate)
-        apply_btn.clicked.connect(lambda: self.CMOSthread.apply_parameters(int(self.blur_entry.displayText()), float(self.dp_entry.displayText()), int(self.minDist_entry.displayText()), int(self.param1_entry.displayText()),
-            int(self.param2_entry.displayText()), int(self.range_entry.displayText()), int(radius_entry.displayText())))
         default_btn.clicked.connect(self.restore_default_params)
+        apply_btn.clicked.connect(self.CMOSthread.apply_parameters)
 
         ##########################
         ### PUPIL CAMERA PANEL ###
         ##########################
 
         cam_grid = QtGui.QGridLayout()
-        grid.addLayout(cam_grid,9,2,1,2)
-        cam_r, cam_c = (9,2)
+        grid.addLayout(cam_grid,11,2,1,2)
 
         snapshot_btn = QtGui.QPushButton("Take Picture",self)
         record_btn = QtGui.QPushButton("Record",self)
@@ -182,7 +191,7 @@ class App(QtGui.QWidget):
         ###################
 
         graph_grid = QtGui.QGridLayout()
-        grid.addLayout(graph_grid,9,4,1,5)
+        grid.addLayout(graph_grid,11,4,1,5)
 
         reference_btn = QtGui.QPushButton("Reference",self)
         reference_btn.setCheckable(True)
@@ -213,7 +222,7 @@ class App(QtGui.QWidget):
         ###################
 
         motor_grid = QtGui.QGridLayout()
-        grid.addLayout(motor_grid,10,2,2,7)
+        grid.addLayout(motor_grid,12,2,2,7)
 
         motor_label = QtGui.QLabel("Motor Control")
         home_btn = QtGui.QPushButton("Home",self)
@@ -251,7 +260,7 @@ class App(QtGui.QWidget):
         #############################
 
         data_grid = QtGui.QGridLayout()
-        grid.addLayout(data_grid,12,2,2,4)
+        grid.addLayout(data_grid,14,2,2,4)
 
         start_pos_label = QtGui.QLabel("Start Position(um)")
         start_pos = QtGui.QLineEdit()
@@ -276,7 +285,7 @@ class App(QtGui.QWidget):
         #######################################
 
         vel_grid = QtGui.QGridLayout()
-        grid.addLayout(vel_grid,12,6,2,2)
+        grid.addLayout(vel_grid,14,6,2,2)
 
         velocity_label = QtGui.QLabel("Velocity")
         velocity = QtGui.QLineEdit()
@@ -388,6 +397,9 @@ class App(QtGui.QWidget):
         self.range_entry.setText("15")
         self.radius_entry.setText("180")
 
+    def set_radius_entry(self,expected_pupil_radius):
+        self.radius_entry.setText(str(expected_pupil_radius))
+
     def closeEvent(self,event):
         self.stop_event.set()
         self.mako.camera.runFeatureCommand('AcquisitionStop')
@@ -402,15 +414,18 @@ class App(QtGui.QWidget):
 
 class Popup(QtGui.QWidget):
 
-    def __init__(self,qImage_snapshot):
+    def __init__(self,CMOSthread):
         super(Popup,self).__init__()
+
+        self.CMOSthread = CMOSthread
+        self.qImage_snapshot = CMOSthread.qImage
 
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
         
         #self.radius_signal = App.radius_signal
 
-        pixmap = QtGui.QPixmap.fromImage(qImage_snapshot)
+        pixmap = QtGui.QPixmap.fromImage(self.qImage_snapshot)
 
         instructions = QtGui.QLabel("Draw a diameter in the image below across the pupil, then press Done")
         done_btn = QtGui.QPushButton("Done")
@@ -440,25 +455,24 @@ class Popup(QtGui.QWidget):
 
     def done(self):
         expected_pupil_radius = int(math.sqrt((self.click_pos[0] - self.release_pos[0])**2 + (self.click_pos[1] - self.release_pos[1])**2)/2)
-        self.emit(QtCore.SIGNAL('set_radius_estimate(PyQt_PyObject)'),export_data)
+        self.CMOSthread.expected_pupil_radius = expected_pupil_radius
+        self.CMOSthread.app.radius_entry.setText(str(expected_pupil_radius))
         self.close()
 
 
 class CMOSthread(QtCore.QThread):
 
-    camera_signal = QtCore.pyqtSignal('PyQt_PyObject')
-
-    def __init__(self,camera):
+    def __init__(self,app):
         super(CMOSthread,self).__init__()
 
-        self.mako = camera
-        self.stop_event = App.stop_event
+        self.app = app
+        self.mako = app.mako
+        self.stop_event = app.stop_event
 
         self.frame = self.mako.camera.getFrame()
         self.frame.announceFrame()
         self.qImage = None
 
-        self.record = False
         self.pupil_video_frames = []
         self.pupil_data_list = []
         self.medianBlur = None
@@ -470,31 +484,26 @@ class CMOSthread(QtCore.QThread):
         self.expected_pupil_radius = None
         self.popup = None
 
-    def apply_parameters(self,medianBlur,dp,minDist,param1,param2,radius_range,radius):
-        self.medianBlur = medianBlur
-        self.dp = dp
-        self.minDist = minDist
-        self.param1 = param1
-        self.param2 = param2
-        self.radius_range = radius_range
-        self.expected_pupil_radius = radius
+    def apply_parameters(self):
+        self.medianBlur = int(self.app.blur_entry.displayText())
+        self.dp = float(self.app.dp_entry.displayText())
+        self.minDist = int(self.app.minDist_entry.displayText())
+        self.param1 = int(self.app.param1_entry.displayText())
+        self.param2 = int(self.app.param2_entry.displayText())
+        self.radius_range = int(self.app.range_entry.displayText())
+        self.expected_pupil_radius = int(self.app.radius_entry.displayText())
 
     def ask_radius_estimate(self):
-        self.popup = Popup(self.qImage)
-        self.connect(self.popup,QtCore.SIGNAL("set_radius_estimate(PyQt_PyObject)"),self.set_radius_estimate)
+        self.popup = Popup(self)
 
     def trigger_record(self):
-
-        self.record = not self.record
-
-        if not self.record:
+        if not self.app.record_btn.isChecked():
             written_video_frames = 0
-            pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video3.avi',outputdict={
+            pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
             '-vcodec':'libx264',
             '-b':'30000000',
             '-vf':'setpts=4*PTS',
-            '-r':'10'
-            })
+            '-r':'20'})
 
             for frame in self.pupil_video_frames:
                 pupil_video_writer.writeFrame(frame)
@@ -543,7 +552,8 @@ class CMOSthread(QtCore.QThread):
             else:
                 pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius)
 
-            if self.record: # extra check to cover for out incorrect ordering case
+
+            if self.app.record_btn.isChecked(): # extra check to cover for out incorrect ordering case
 
                 self.pupil_video_frames.append(pupil_data[0].copy())
                 self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
@@ -558,9 +568,8 @@ class CMOSthread(QtCore.QThread):
 
             self.qImage = qImage
             
-            self.camera_signal.emit(self.qImage)
-            #image = Image.fromarray(image)
-            #image = ImageTk.PhotoImage(image)
+            self.emit(QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),self.qImage)
+
         
 class EMCCDthread(QtCore.QThread):
 

@@ -54,7 +54,7 @@ def objective_function(center,radius,expected_center,expected_radius):
 
         
 def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,expected_radius):
-    print medianBlur,dp,minDist,param1,param2,radius_range,expected_radius
+    
     if frame is None: 
         return
 
