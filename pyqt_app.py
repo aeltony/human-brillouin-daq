@@ -101,6 +101,8 @@ class App(QtGui.QWidget):
         grid.addLayout(det_grid,0,0,9,2)
 
         detection_panel_label = QtGui.QLabel("Pupil Detection Panel")
+        blur_label = QtGui.QLabel("medianBlur =")
+        blur_entry = QtGui.QLineEdit()
         dp_label = QtGui.QLabel("dp =")
         dp_entry = QtGui.QLineEdit()
         minDist_label = QtGui.QLabel("minDist =")
@@ -114,25 +116,47 @@ class App(QtGui.QWidget):
         radius_label = QtGui.QLabel("radius =")
         radius_entry = QtGui.QLineEdit()
         radius_btn = QtGui.QPushButton("Draw radius estimate",self)
-        apply_btn = QtGui.QPushButton("Apply Changes")
+        default_btn = QtGui.QPushButton("Restore Defaults",self)
+        apply_btn = QtGui.QPushButton("Apply Changes",self)
         
         det_grid.addWidget(detection_panel_label, 0, 0, 1, 2)
-        det_grid.addWidget(dp_label, 1, 0)
-        det_grid.addWidget(dp_entry, 1, 1)
-        det_grid.addWidget(minDist_label, 2, 0)
-        det_grid.addWidget(minDist_entry, 2, 1)
-        det_grid.addWidget(param1_label, 3, 0)
-        det_grid.addWidget(param1_entry, 3, 1)
-        det_grid.addWidget(param2_label, 4, 0)
-        det_grid.addWidget(param2_entry, 4, 1)
-        det_grid.addWidget(range_label, 5, 0)
-        det_grid.addWidget(range_entry, 5, 1)
-        det_grid.addWidget(radius_label, 6, 0)
-        det_grid.addWidget(radius_entry, 6, 1)
-        det_grid.addWidget(radius_btn, 7, 0, 1, 2)
-        det_grid.addWidget(apply_btn, 8, 0, 1, 2)
+        det_grid.addWidget(blur_label, 1, 0)
+        det_grid.addWidget(blur_entry, 1, 1)
+        det_grid.addWidget(dp_label, 2, 0)
+        det_grid.addWidget(dp_entry, 2, 1)
+        det_grid.addWidget(minDist_label, 3, 0)
+        det_grid.addWidget(minDist_entry, 3, 1)
+        det_grid.addWidget(param1_label, 4, 0)
+        det_grid.addWidget(param1_entry, 4, 1)
+        det_grid.addWidget(param2_label, 5, 0)
+        det_grid.addWidget(param2_entry, 5, 1)
+        det_grid.addWidget(range_label, 6, 0)
+        det_grid.addWidget(range_entry, 6, 1)
+        det_grid.addWidget(radius_label, 7, 0)
+        det_grid.addWidget(radius_entry, 7, 1)
+        det_grid.addWidget(radius_btn, 8, 0, 1, 2)
+        det_grid.addWidget(apply_btn, 9, 0, 1, 2)
+
+        blur_entry.setText("15")
+        dp_entry.setText("3.0")
+        minDist_entry.setText("1000")
+        param1_entry.setText("1")
+        param2_entry.setText("300")
+        range_entry.setText("15")
+        radius_entry.setText("180")
+
+        self.blur_entry = blur_entry
+        self.dp_entry = dp_entry
+        self.minDist_entry = minDist_entry
+        self.param1_entry = param1_entry
+        self.param2_entry = param2_entry
+        self.range_entry = range_entry
+        self.radius_entry = radius_entry
 
         radius_btn.clicked.connect(self.CMOSthread.ask_radius_estimate)
+        apply_btn.clicked.connect(lambda: self.CMOSthread.apply_parameters(int(self.blur_entry.displayText()), float(self.dp_entry.displayText()), int(self.minDist_entry.displayText()), int(self.param1_entry.displayText()),
+            int(self.param2_entry.displayText()), int(self.range_entry.displayText()), int(radius_entry.displayText())))
+        default_btn.clicked.connect(self.restore_default_params)
 
         ##########################
         ### PUPIL CAMERA PANEL ###
@@ -356,6 +380,14 @@ class App(QtGui.QWidget):
     def set_velocity(self, velocity):
         self.motor.device.send(42,velocity)
 
+    def restore_default_params(self):
+        self.dp_entry.setText("3.0")
+        self.minDist_entry.setText("1000")
+        self.param1_entry.setText("1")
+        self.param2_entry.setText("300")
+        self.range_entry.setText("15")
+        self.radius_entry.setText("180")
+
     def closeEvent(self,event):
         self.stop_event.set()
         self.mako.camera.runFeatureCommand('AcquisitionStop')
@@ -381,22 +413,11 @@ class Popup(QtGui.QWidget):
         pixmap = QtGui.QPixmap.fromImage(qImage_snapshot)
 
         instructions = QtGui.QLabel("Draw a diameter in the image below across the pupil, then press Done")
-        self.dp_entry = QtGui.QLineEdit()
-        self.minDist_entry = QtGui.QLineEdit()
-        self.param1_entry = QtGui.QLineEdit()
-        self.param2_entry = QtGui.QLineEdit()
-        self.range_entry = QtGui.QLineEdit()
-
         done_btn = QtGui.QPushButton("Done")
         image_panel = QtGui.QLabel()
         image_panel.setPixmap(pixmap)
 
         grid.addWidget(instructions,0,0)
-        grid.addWidget(self.dp_entry,1,0)
-        grid.addWidget(self.minDist_entry,1,1)
-        grid.addWidget(self.param1_entry,1,2)
-        grid.addWidget(self.param2_entry,1,3)
-        grid.addWidget(self.range_entry,1,4)
         grid.addWidget(done_btn,1,5)
         grid.addWidget(image_panel,2,0,1,6)
 
@@ -419,8 +440,6 @@ class Popup(QtGui.QWidget):
 
     def done(self):
         expected_pupil_radius = int(math.sqrt((self.click_pos[0] - self.release_pos[0])**2 + (self.click_pos[1] - self.release_pos[1])**2)/2)
-        export_data = (float(self.dp_entry.displayText()), int(self.minDist_entry.displayText()), int(self.param1_entry.displayText()),
-            int(self.param2_entry.displayText()), it(self.range_entry.displayText()), expected_pupil_radius)
         self.emit(QtCore.SIGNAL('set_radius_estimate(PyQt_PyObject)'),export_data)
         self.close()
 
@@ -442,20 +461,27 @@ class CMOSthread(QtCore.QThread):
         self.record = False
         self.pupil_video_frames = []
         self.pupil_data_list = []
+        self.medianBlur = None
         self.dp = None
         self.minDist = None
         self.param1 = None
         self.param2 = None
-        self.radius = None
+        self.radius_range = None
         self.expected_pupil_radius = None
         self.popup = None
+
+    def apply_parameters(self,medianBlur,dp,minDist,param1,param2,radius_range,radius):
+        self.medianBlur = medianBlur
+        self.dp = dp
+        self.minDist = minDist
+        self.param1 = param1
+        self.param2 = param2
+        self.radius_range = radius_range
+        self.expected_pupil_radius = radius
 
     def ask_radius_estimate(self):
         self.popup = Popup(self.qImage)
         self.connect(self.popup,QtCore.SIGNAL("set_radius_estimate(PyQt_PyObject)"),self.set_radius_estimate)
-
-    def set_radius_estimate(self,params):
-        self.dp, self.minDist, self.param1, self.param2, self.radius, self.expected_pupil_radius = params
 
     def trigger_record(self):
 
@@ -512,10 +538,10 @@ class CMOSthread(QtCore.QThread):
             resized_image = imutils.resize(image_arr, width=1024)
             plain_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2BGR)
 
-            if self.expected_pupil_radius is None:
-                pupil_data = ht.detect_pupil_frame(plain_image)
+            if self.medianBlur is None or self.dp is None or self.minDist is None or self.param1 is None or self.param2 is None or self.radius_range is None or self.expected_pupil_radius is None:
+                pupil_data = [plain_image,None,None]
             else:
-                pupil_data = ht.detect_pupil_frame(plain_image,self.dp,self.minDist,self.param1,self.param2,self.radius,self.expected_pupil_radius)
+                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius)
 
             if self.record: # extra check to cover for out incorrect ordering case
 
