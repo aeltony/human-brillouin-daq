@@ -69,6 +69,7 @@ class App(QtGui.QWidget):
         self.CMOSthread = CMOSthread(self)
         self.connect(self.CMOSthread,QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),self.update_CMOS_panel)
 
+
         self.EMCCDthread = EMCCDthread(self)
         self.connect(self.EMCCDthread,QtCore.SIGNAL('update_EMCCD_panel(PyQt_PyObject)'),self.update_EMCCD_panel)
         #self.EMCCDthread.graph_signal.connect(self.update_graph_panel)
@@ -76,6 +77,7 @@ class App(QtGui.QWidget):
 
         ### CMOS AND EMCCD PANEL ###
         self.cmos_panel = QtGui.QLabel()
+        self.cmos_panel.mousePressEvent = self.handle_click
         self.emccd_panel = QtGui.QLabel()
         self.canvas = FigureCanvasQTAgg(self.graph.fig)
 
@@ -88,11 +90,12 @@ class App(QtGui.QWidget):
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
 
-        grid.addWidget(self.cmos_panel,0,2,11,7)
-        grid.addWidget(self.emccd_panel,0,9,3,5)
-        grid.addWidget(self.canvas,3,9,3,5)
 
-        self.cmos_panel.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
+        grid.addWidget(self.cmos_panel,0,2,11,7)
+        grid.addWidget(self.emccd_panel,0,9,6,5)
+        grid.addWidget(self.canvas,6,9,3,5)
+
+        self.cmos_panel.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
         
         #############################
         ### PUPIL DETECTION PANEL ###
@@ -119,7 +122,10 @@ class App(QtGui.QWidget):
         radius_btn = QtGui.QPushButton("Draw radius estimate",self)
         default_btn = QtGui.QPushButton("Restore Defaults",self)
         apply_btn = QtGui.QPushButton("Apply Changes",self)
-        
+        set_coordinates_btn = QtGui.QPushButton("Set Coordinates",self)
+        set_scan_loc_btn = QtGui.QPushButton("Set Scan Location",self)
+        set_scan_loc_btn.setCheckable(True)
+
         det_grid.addWidget(detection_panel_label, 0, 0, 1, 2)
         det_grid.addWidget(blur_label, 1, 0)
         det_grid.addWidget(blur_entry, 1, 1)
@@ -138,7 +144,11 @@ class App(QtGui.QWidget):
         det_grid.addWidget(radius_btn, 8, 0, 1, 2)
         det_grid.addWidget(default_btn, 9, 0, 1, 2)
         det_grid.addWidget(apply_btn, 10, 0, 1, 2)
+        det_grid.addWidget(set_coordinates_btn, 12, 0, 1, 2)
+        det_grid.addWidget(set_scan_loc_btn,13, 0, 1, 2)
 
+
+        detection_panel_label.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
         blur_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         dp_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         minDist_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
@@ -162,10 +172,13 @@ class App(QtGui.QWidget):
         self.param2_entry = param2_entry
         self.range_entry = range_entry
         self.radius_entry = radius_entry
+        self.set_scan_loc_btn = set_scan_loc_btn
 
         radius_btn.clicked.connect(self.CMOSthread.ask_radius_estimate)
         default_btn.clicked.connect(self.restore_default_params)
         apply_btn.clicked.connect(self.CMOSthread.apply_parameters)
+        set_coordinates_btn.clicked.connect(self.CMOSthread.set_coordinates)
+
 
         ##########################
         ### PUPIL CAMERA PANEL ###
@@ -251,7 +264,7 @@ class App(QtGui.QWidget):
 
         home_btn.clicked.connect(self.move_motor_home)
         forward_btn.clicked.connect(lambda: self.move_motor_forward(float(self.distance_entry.displayText())))
-        backward_btn.clicked.connect(lambda: self.move_motor_backward(-float(self.distance_entry.displayText())))
+        backward_btn.clicked.connect(lambda: self.move_motor_backward(float(self.distance_entry.displayText())))
         position_btn.clicked.connect(lambda: self.move_motor_abs(float(self.location_entry.displayText())))
 
         #############################
@@ -287,10 +300,11 @@ class App(QtGui.QWidget):
         grid.addLayout(vel_grid,14,6,2,2)
 
         velocity_label = QtGui.QLabel("Velocity")
-        velocity = QtGui.QLineEdit()
+        velocity_entry = QtGui.QLineEdit()
         velocity_btn = QtGui.QPushButton("Change Velocity",self)
 
         vel_grid.addWidget(velocity_label, 0, 0)
+        vel_grid.addWidget(velocity_entry, 1, 0)
         vel_grid.addWidget(velocity_btn, 1, 1)
 
 
@@ -339,6 +353,16 @@ class App(QtGui.QWidget):
 
         self.canvas.draw()
 
+    def handle_click(self,event):
+        
+        if self.set_scan_loc_btn.isChecked():
+            x = event.pos().x()
+            y = event.pos().y()
+            self.CMOSthread.scan_loc = (x,y)
+            self.set_scan_loc_btn.setChecked(False)
+            print (x,y)
+
+
     #similar to shutters.py, called on by reference button 
     def shutters(self, close = False):
         dll = WinDLL("C:\\Program Files\\quad-shutter\\Quad Shutter dll and docs\\x64\\PiUsb")
@@ -364,24 +388,24 @@ class App(QtGui.QWidget):
     def move_motor_home(self):
         self.motor.device.home()
         loc = self.motor.device.send(60,0)
-        self.location_entry.setText(str(int(loc.data*3.072)))
+        self.location_entry.setText(str(loc.data*3.072))
 
     # moves zaber motor, called on by forwards and backwards buttons
     def move_motor_forward(self,distance):
-        self.motor.device.move_rel(int(distance/3.072))
+        self.motor.device.move_rel(distance/3.072)
         loc = self.motor.device.send(60, 0)
-        self.location_entry.setText(str(int(loc.data*3.072)))
+        self.location_entry.setText(str(loc.data*3.072))
 
     def move_motor_backward(self,distance):
-        self.motor.device.move_rel(-int(distance/3.072))
+        self.motor.device.move_rel(-distance/3.072)
         loc = self.motor.device.send(60, 0)
-        self.location_entry.setText(str(int(loc.data*3.072)))
+        self.location_entry.setText(str(loc.data*3.072))
 
      # moves zaber motor to a set location, called on above
     def move_motor_abs(self,pos):
-        self.motor.device.move_abs(int(pos/3.072))
+        self.motor.device.move_abs(pos/3.072)
         loc = self.motor.device.send(60, 0)
-        self.location_entry.setText(str(int(loc.data*3.072)))
+        self.location_entry.setText(str(loc.data*3.072))
 
     def set_velocity(self, velocity):
         self.motor.device.send(42,velocity)
@@ -481,6 +505,15 @@ class CMOSthread(QtCore.QThread):
         self.expected_pupil_radius = None
         self.popup = None
 
+        self.coords = False
+        self.detected_radius = None
+        self.detected_center = None
+        self.scan_loc = None
+        self.scanned_locations = []
+
+    def set_coordinates(self):
+        self.coords = not self.coords
+
     def apply_parameters(self):
         self.medianBlur = int(self.app.blur_entry.displayText())
         self.dp = float(self.app.dp_entry.displayText())
@@ -489,6 +522,7 @@ class CMOSthread(QtCore.QThread):
         self.param2 = int(self.app.param2_entry.displayText())
         self.radius_range = int(self.app.range_entry.displayText())
         self.expected_pupil_radius = int(self.app.radius_entry.displayText())
+        print "expected Pupil rdius", self.expected_pupil_radius
 
     def ask_radius_estimate(self):
         self.popup = Popup(self)
@@ -544,11 +578,19 @@ class CMOSthread(QtCore.QThread):
             resized_image = imutils.resize(image_arr, width=1024)
             plain_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2BGR)
 
+            if self.scan_loc is not None:
+                size = 20
+                dim = plain_image.shape
+                cv2.line(plain_image,(self.scan_loc[0],min(self.scan_loc[1]+size,dim[0])),(self.scan_loc[0],max(self.scan_loc[1]-size,0)),(0,255,0),1)
+                cv2.line(plain_image,(min(self.scan_loc[0]+size,dim[1]),self.scan_loc[1]),(max(self.scan_loc[0]-size,0),self.scan_loc[1]),(0,255,0),1)
+
+
             if self.medianBlur is None or self.dp is None or self.minDist is None or self.param1 is None or self.param2 is None or self.radius_range is None or self.expected_pupil_radius is None:
                 pupil_data = [plain_image,None,None]
             else:
-                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius)
-
+                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords,self.scanned_locations)
+                self.detected_center = pupil_data[1]
+                self.detected_radius = pupil_data[2]
 
             if self.app.record_btn.isChecked(): # extra check to cover for out incorrect ordering case
 
@@ -605,20 +647,33 @@ class EMCCDthread(QtCore.QThread):
         scaled_image = scaled_image.astype(int)
         scaled_8bit = np.array(scaled_image, dtype = np.uint8)
 
-        image = imutils.resize(scaled_8bit, width=1024)
-        image = Image.fromarray(image)
+        loc = np.argmax(scaled_8bit)/512
+        left_right = scaled_8bit[loc].argsort()[-10:][::-1]
+        left_right.sort()
+        mid = int((left_right[0]+left_right[-1])/2)
 
+        cropped = scaled_8bit[loc-7:loc+7, mid-40:mid+40]
+
+        image = imutils.resize(cropped, width=1024)
+        image = Image.fromarray(image)
         return image
 
     def scan(self, start_pos, length, num_steps):
-        self.motor.device.move_abs(int(start_pos/3.072))
+
+        if self.app.CMOSthread.scan_loc is not None:
+            scan_loc = self.app.CMOSthread.scan_loc
+            center = self.app.CMOSthread.detected_center
+            relative_coord = (scan_loc[0]-center[0],scan_loc[1]-center[1])
+            self.app.CMOSthread.scanned_locations.append(relative_coord)
+
+        self.motor.device.move_abs(start_pos/3.072)
         step_size = length // num_steps
 
         self.export_list.append(self.acquire_frame()) #initial frame
 
         for i in range(num_steps):
 
-            self.motor.device.move_rel(int(step_size/3.072))           
+            self.motor.device.move_rel(step_size/3.072)           
             
             self.export_list.append(self.acquire_frame())
 

@@ -53,13 +53,12 @@ def objective_function(center,radius,expected_center,expected_radius):
     return center_diff + 5*radius_diff
 
         
-def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,expected_radius):
+def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,expected_radius,coordinates,scanned_locations):
     
     if frame is None: 
         return
 
-    #print expected_radius
-
+    dim = frame.shape
     frame_bgr = frame.copy()
 
     frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
@@ -88,8 +87,8 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
         circles = np.uint16(np.around(circles))
 
         for i in circles[0,:]:
-            cv2.circle(frame_bgr,(i[0],i[1]),i[2],(0,0,255),2)
-            cv2.circle(frame_bgr,(i[0],i[1]),2,(0,0,255),3)
+            cv2.circle(frame_bgr,(i[0],i[1]),i[2],(0,0,255),1)
+            cv2.circle(frame_bgr,(i[0],i[1]),2,(0,0,255),2)
 
             objective = abs(expected_radius - i[2])
 
@@ -101,15 +100,29 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
         if min_circle_center is not None and min_circle_radius is not None:
             cv2.circle(frame_bgr,min_circle_center,min_circle_radius,(255,0,0),2)
             cv2.circle(frame_bgr,min_circle_center,2,(255,0,0),3)
-            #print "center:",min_circle_center,"radius:",min_circle_radius
+            for loc in scanned_locations:
+                cv2.circle(frame_bgr,(min_circle_center[0]+loc[0],min_circle_center[1]+loc[1]),2,(255,0,255),2)
+
+
+        if coordinates:
+            x,y = min_circle_center
+            partitions = min_circle_radius/50 + 1
+            partition_size = 50
+            partition_radius = partitions*partition_size
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            for p in range(1,partitions+1):
+                cv2.circle(frame_bgr,min_circle_center,p*partition_size,(0,255,0),1)
+
+            cv2.line(frame_bgr,(x,min(y+partition_radius,dim[0])),(x,max(y-partition_radius,0)),(0,255,0),1)
+            cv2.line(frame_bgr,(min(x+partition_radius,dim[1]),y),(max(x-partition_radius,0),y),(0,255,0),1)
 
     else:
         pass 
         #print "No circles detected!"
 
-
-    cv2.line(frame_bgr,(0,0),(0,15),(0,0,0),5) # vertical line
-    cv2.line(frame_bgr,(0,0),(100,0),(255,255,255),5) # horizontal line
+    #control 
+    cv2.line(frame_bgr,(0,0),(0,frame_bgr.shape[0]),(0,0,0),5) # vertical line
+    cv2.line(frame_bgr,(0,0),(frame_bgr.shape[1],0),(255,255,255),5) # horizontal line
 
     return (frame_bgr.copy(),min_circle_center,min_circle_radius)
 
