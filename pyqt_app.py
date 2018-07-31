@@ -16,6 +16,9 @@ from PIL import ImageTk
 import hough_transform as ht
 import skvideo.io as skv
 
+import CMOSthread
+import EMCCDthread
+
 # device imports
 import device_init
 from pymba import *
@@ -46,7 +49,7 @@ class App(QtGui.QWidget):
         self.mako = device_init.Mako_Camera()
         self.andor = device_init.Andor_Camera()
         self.motor = device_init.Motor()
-        self.graph = Graph()
+        self.graph = EMCCDthread.Graph()
 
         self.brillouin_shift_list = []
         self.PlasticBS =  9.6051
@@ -65,12 +68,13 @@ class App(QtGui.QWidget):
         self.andor_export_image = None
         self.expected_pupil_radius = None
         self.popup = None
+        self.coord_panel_image = np.zeros((1030,1030,3), np.uint8)
 
-        self.CMOSthread = CMOSthread(self)
+        self.CMOSthread = CMOSthread.CMOSthread(self)
         self.connect(self.CMOSthread,QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),self.update_CMOS_panel)
 
 
-        self.EMCCDthread = EMCCDthread(self)
+        self.EMCCDthread = EMCCDthread.EMCCDthread(self)
         self.connect(self.EMCCDthread,QtCore.SIGNAL('update_EMCCD_panel(PyQt_PyObject)'),self.update_EMCCD_panel)
         #self.EMCCDthread.graph_signal.connect(self.update_graph_panel)
         #self.EMCCDthread.curve_signal.connect(self.draw_curve)
@@ -91,9 +95,9 @@ class App(QtGui.QWidget):
         self.setLayout(grid)
 
 
-        grid.addWidget(self.cmos_panel,0,2,11,7)
-        grid.addWidget(self.emccd_panel,0,9,6,5)
-        grid.addWidget(self.canvas,6,9,3,5)
+        grid.addWidget(self.cmos_panel,0,4,11,7)
+        grid.addWidget(self.emccd_panel,0,11,6,5)
+        grid.addWidget(self.canvas,6,11,3,5)
 
         self.cmos_panel.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
         
@@ -102,7 +106,7 @@ class App(QtGui.QWidget):
         #############################
 
         det_grid = QtGui.QGridLayout()
-        grid.addLayout(det_grid,0,0,11,2)
+        grid.addLayout(det_grid,0,0,11,4)
 
         detection_panel_label = QtGui.QLabel("Pupil Detection Panel")
         blur_label = QtGui.QLabel("medianBlur =")
@@ -125,7 +129,9 @@ class App(QtGui.QWidget):
         set_coordinates_btn = QtGui.QPushButton("Set Coordinates",self)
         set_scan_loc_btn = QtGui.QPushButton("Set Scan Location",self)
         set_scan_loc_btn.setCheckable(True)
+        coord_panel = QtGui.QLabel()
         scanned_loc_list = QtGui.QListWidget(self)
+
 
         det_grid.addWidget(detection_panel_label, 0, 0, 1, 2)
         det_grid.addWidget(blur_label, 1, 0)
@@ -147,7 +153,8 @@ class App(QtGui.QWidget):
         det_grid.addWidget(apply_btn, 10, 0, 1, 2)
         det_grid.addWidget(set_coordinates_btn, 12, 0, 1, 2)
         det_grid.addWidget(set_scan_loc_btn,13, 0, 1, 2)
-        det_grid.addWidget(scanned_loc_list,14, 0, 1, 2)
+        det_grid.addWidget(coord_panel,0, 2, 4, 2)
+        det_grid.addWidget(scanned_loc_list, 4, 2, 4, 2)
 
         detection_panel_label.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
         blur_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
@@ -157,6 +164,7 @@ class App(QtGui.QWidget):
         param2_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         range_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         radius_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        coord_panel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
 
         blur_entry.setText("15")
         dp_entry.setText("3.0")
@@ -174,6 +182,7 @@ class App(QtGui.QWidget):
         self.range_entry = range_entry
         self.radius_entry = radius_entry
         self.set_scan_loc_btn = set_scan_loc_btn
+        self.coord_panel = coord_panel
         self.scanned_loc_list = scanned_loc_list
 
         radius_btn.clicked.connect(self.CMOSthread.ask_radius_estimate)
@@ -187,7 +196,7 @@ class App(QtGui.QWidget):
         ##########################
 
         cam_grid = QtGui.QGridLayout()
-        grid.addLayout(cam_grid,11,2,1,2)
+        grid.addLayout(cam_grid,11,4,1,2)
 
         snapshot_btn = QtGui.QPushButton("Take Picture",self)
         record_btn = QtGui.QPushButton("Record",self)
@@ -205,7 +214,7 @@ class App(QtGui.QWidget):
         ###################
 
         graph_grid = QtGui.QGridLayout()
-        grid.addLayout(graph_grid,11,4,1,5)
+        grid.addLayout(graph_grid,11,6,1,5)
 
         reference_btn = QtGui.QPushButton("Reference",self)
         reference_btn.setCheckable(True)
@@ -236,7 +245,7 @@ class App(QtGui.QWidget):
         ###################
 
         motor_grid = QtGui.QGridLayout()
-        grid.addLayout(motor_grid,12,2,2,7)
+        grid.addLayout(motor_grid,12,4,2,7)
 
         motor_label = QtGui.QLabel("Motor Control")
         home_btn = QtGui.QPushButton("Home",self)
@@ -265,8 +274,8 @@ class App(QtGui.QWidget):
         self.location_entry.setText(str(int(loc.data*3.072)))
 
         home_btn.clicked.connect(self.move_motor_home)
-        forward_btn.clicked.connect(lambda: self.move_motor_forward(float(self.distance_entry.displayText())))
-        backward_btn.clicked.connect(lambda: self.move_motor_backward(float(self.distance_entry.displayText())))
+        forward_btn.clicked.connect(lambda: self.move_motor_rel(float(self.distance_entry.displayText())))
+        backward_btn.clicked.connect(lambda: self.move_motor_rel(-float(self.distance_entry.displayText())))
         position_btn.clicked.connect(lambda: self.move_motor_abs(float(self.location_entry.displayText())))
 
         #############################
@@ -274,7 +283,7 @@ class App(QtGui.QWidget):
         #############################
 
         data_grid = QtGui.QGridLayout()
-        grid.addLayout(data_grid,14,2,2,4)
+        grid.addLayout(data_grid,14,4,2,4)
 
         start_pos_label = QtGui.QLabel("Start Position(um)")
         start_pos = QtGui.QLineEdit()
@@ -299,7 +308,7 @@ class App(QtGui.QWidget):
         #######################################
 
         vel_grid = QtGui.QGridLayout()
-        grid.addLayout(vel_grid,14,6,2,2)
+        grid.addLayout(vel_grid,14,8,2,2)
 
         velocity_label = QtGui.QLabel("Velocity")
         velocity_entry = QtGui.QLineEdit()
@@ -317,9 +326,39 @@ class App(QtGui.QWidget):
 
     def update_CMOS_panel(self,qImage):
         #print "updating CMOS panel"
+        #updating cmos panel
         pixmap = QtGui.QPixmap.fromImage(qImage)
         self.cmos_panel.setPixmap(pixmap)
         self.cmos_panel.show()
+
+        #update coord panel
+        if self.CMOSthread.detected_radius is not None and self.CMOSthread.detected_center is not None:
+            circle_image = self.coord_panel_image.copy()
+            image_dim = circle_image.shape
+            image_center = (image_dim[1]/2,image_dim[0]/2)
+
+            if self.CMOSthread.scan_loc is not None:
+                size = 20
+                scan_loc = self.CMOSthread.scan_loc
+                det_center = self.CMOSthread.detected_center
+                rel_scan_loc = (scan_loc[0]-det_center[0],scan_loc[1]-det_center[1])
+                panel_loc = (rel_scan_loc[0]+image_center[0],rel_scan_loc[1]+image_center[1])
+
+                cv2.line(circle_image,(panel_loc[0],min(panel_loc[1]+size,image_dim[0])),(panel_loc[0],max(panel_loc[1]-size,0)),(0,255,0),1)
+                cv2.line(circle_image,(min(panel_loc[0]+size,image_dim[1]),panel_loc[1]),(max(panel_loc[0]-size,0),panel_loc[1]),(0,255,0),1)
+            
+            cv2.circle(circle_image,image_center,self.CMOSthread.detected_radius,(255,0,0),2)
+
+            resized_image = imutils.resize(circle_image, width=image_dim[0]/2)
+
+            image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)
+            height, width, channel = image.shape
+            bytesPerLine = 3 * width
+            coord_image = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
+            pixmap = QtGui.QPixmap.fromImage(coord_image)
+            self.coord_panel.setPixmap(pixmap)
+            self.coord_panel.show()
+
 
     def update_EMCCD_panel(self,qImage):
         #print "updating EMCCD panel"
@@ -393,13 +432,8 @@ class App(QtGui.QWidget):
         self.location_entry.setText(str(loc.data*3.072))
 
     # moves zaber motor, called on by forwards and backwards buttons
-    def move_motor_forward(self,distance):
+    def move_motor_rel(self,distance):
         self.motor.device.move_rel(distance/3.072)
-        loc = self.motor.device.send(60, 0)
-        self.location_entry.setText(str(loc.data*3.072))
-
-    def move_motor_backward(self,distance):
-        self.motor.device.move_rel(-distance/3.072)
         loc = self.motor.device.send(60, 0)
         self.location_entry.setText(str(loc.data*3.072))
 
@@ -433,416 +467,8 @@ class App(QtGui.QWidget):
         self.shutters(close = True)
 
         event.accept() #closes the application
-
-
-class Popup(QtGui.QWidget):
-
-    def __init__(self,CMOSthread):
-        super(Popup,self).__init__()
-
-        self.CMOSthread = CMOSthread
-        self.qImage_snapshot = CMOSthread.qImage
-
-        grid = QtGui.QGridLayout()
-        self.setLayout(grid)
         
-        #self.radius_signal = App.radius_signal
 
-        pixmap = QtGui.QPixmap.fromImage(self.qImage_snapshot)
-
-        instructions = QtGui.QLabel("Draw a diameter in the image below across the pupil, then press Done")
-        done_btn = QtGui.QPushButton("Done")
-        image_panel = QtGui.QLabel()
-        image_panel.setPixmap(pixmap)
-
-        grid.addWidget(instructions,0,0)
-        grid.addWidget(done_btn,1,5)
-        grid.addWidget(image_panel,2,0,1,6)
-
-        done_btn.clicked.connect(self.done)
-
-        self.click_pos = None
-        self.release_pos = None
-
-        self.setWindowTitle("Set Radius Estimate")
-        self.move(50,50)
-        self.show()
-
-    def mousePressEvent(self,QMouseEvent):
-        self.click_pos = (QMouseEvent.x(),QMouseEvent.y())
-        print self.click_pos
-
-    def mouseReleaseEvent(self,QMouseEvent):
-        self.release_pos = (QMouseEvent.x(),QMouseEvent.y())
-        print self.release_pos
-
-    def done(self):
-        expected_pupil_radius = int(math.sqrt((self.click_pos[0] - self.release_pos[0])**2 + (self.click_pos[1] - self.release_pos[1])**2)/2)
-        self.CMOSthread.expected_pupil_radius = expected_pupil_radius
-        self.CMOSthread.app.radius_entry.setText(str(expected_pupil_radius))
-        self.close()
-
-
-class CMOSthread(QtCore.QThread):
-
-    def __init__(self,app):
-        super(CMOSthread,self).__init__()
-
-        self.app = app
-        self.mako = app.mako
-        self.stop_event = app.stop_event
-
-        self.frame = self.mako.camera.getFrame()
-        self.frame.announceFrame()
-        self.qImage = None
-
-        self.pupil_video_frames = []
-        self.pupil_data_list = []
-        self.medianBlur = None
-        self.dp = None
-        self.minDist = None
-        self.param1 = None
-        self.param2 = None
-        self.radius_range = None
-        self.expected_pupil_radius = None
-        self.popup = None
-
-        self.coords = False
-        self.detected_radius = None
-        self.detected_center = None
-        self.scan_loc = None
-        self.scanned_locations = [] #stores locations of depth scans, in coordinate system
-
-    def set_coordinates(self):
-        self.coords = not self.coords
-
-    def apply_parameters(self):
-        self.medianBlur = int(self.app.blur_entry.displayText())
-        self.dp = float(self.app.dp_entry.displayText())
-        self.minDist = int(self.app.minDist_entry.displayText())
-        self.param1 = int(self.app.param1_entry.displayText())
-        self.param2 = int(self.app.param2_entry.displayText())
-        self.radius_range = int(self.app.range_entry.displayText())
-        self.expected_pupil_radius = int(self.app.radius_entry.displayText())
-        print "expected Pupil radius", self.expected_pupil_radius
-
-    def ask_radius_estimate(self):
-        self.popup = Popup(self)
-
-    def trigger_record(self):
-        if not self.app.record_btn.isChecked():
-            written_video_frames = 0
-            pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
-            '-vcodec':'libx264',
-            '-b':'30000000',
-            '-vf':'setpts=4*PTS',
-            '-r':'20'})
-
-            for frame in self.pupil_video_frames:
-                pupil_video_writer.writeFrame(frame)
-                written_video_frames += 1
-                print "wrote a frame!"
-            
-            print "finished writing!"
-            pupil_video_writer.close()
-            self.pupil_video_frames = []
-
-            frame_number = 0
-            pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
-
-            for frame_number in range(1,len(self.pupil_data_list)+1):
-                pupil_center, pupil_radius = self.pupil_data_list[frame_number-1]
-                if pupil_center is None or pupil_radius is None: 
-                    pupil_data_file.write("Frame: %d No pupil detected!\n" % frame_number)
-                else: 
-                    pupil_data_file.write("Frame: %d Pupil Center: %s Pupil Radius: %d\n" % (frame_number,pupil_center,pupil_radius))
-
-            print "video frames vs data frames",written_video_frames,frame_number
-            pupil_data_file.close()
-            self.pupil_data_list = []
-
-    def run(self):
-        self.mako.camera.startCapture()
-        self.mako.camera.runFeatureCommand('AcquisitionStart')
-        self.frame.queueFrameCapture()
-
-        while not self.stop_event.is_set():
-            #print "videoLoop"
-            # self.root.update()
-            self.frame.waitFrameCapture(1000)
-            self.frame.queueFrameCapture()
-            imgData = self.frame.getBufferByteData()
-            image_arr = np.ndarray(buffer = imgData,
-                           dtype = np.uint8,
-                           shape = (self.frame.height,self.frame.width))    
-            
-            
-            resized_image = imutils.resize(image_arr, width=1024)
-            plain_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2BGR)
-
-            if self.scan_loc is not None:
-                size = 20
-                dim = plain_image.shape
-                cv2.line(plain_image,(self.scan_loc[0],min(self.scan_loc[1]+size,dim[0])),(self.scan_loc[0],max(self.scan_loc[1]-size,0)),(0,255,0),1)
-                cv2.line(plain_image,(min(self.scan_loc[0]+size,dim[1]),self.scan_loc[1]),(max(self.scan_loc[0]-size,0),self.scan_loc[1]),(0,255,0),1)
-
-
-            if self.medianBlur is None or self.dp is None or self.minDist is None or self.param1 is None or self.param2 is None or self.radius_range is None or self.expected_pupil_radius is None:
-                pupil_data = [plain_image,None,None]
-            else:
-                start_time = time.time()
-                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords,self.scanned_locations)
-                print "HT run time: ",time.time() - start_time
-
-            if self.app.record_btn.isChecked(): # extra check to cover for out incorrect ordering case
-
-                self.pupil_video_frames.append(pupil_data[0].copy())
-                self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
-                print "added frame to list"
-            
-
-            # convets image to form used by tkinter
-            image = cv2.cvtColor(pupil_data[0].copy(), cv2.COLOR_BGR2RGB)
-            height, width, channel = image.shape
-            bytesPerLine = 3 * width
-            qImage = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
-
-            self.qImage = qImage
-            
-            self.emit(QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),self.qImage)
-
-            #added after sending next frame because scan might be taking pupil center from next frame
-            self.detected_center = pupil_data[1]
-            self.detected_radius = pupil_data[2]
-
-        
-class EMCCDthread(QtCore.QThread):
-
-    graph_signal = QtCore.pyqtSignal('PyQt_PyObject')
-    curve_signal = QtCore.pyqtSignal('PyQt_PyObject')
-
-    def __init__(self,app):
-        super(EMCCDthread,self).__init__()
-
-        self.app = app
-        self.andor = app.andor
-        self.motor = app.motor
-        self.graph = app.graph
-        self.stop_event = app.stop_event
-        self.andor_lock = app.andor_lock
-        self.condition = app.condition
-
-        self.image = None
-        self.image_andor = None
-        self.analyzed_row = np.zeros(80)
-
-        self.export_list = []
-        self.brillouin_shift_list = []
-        self.scan_ready = False
-
-    def acquire_frame(self):
-        with self.andor_lock:
-            self.andor.cam.StartAcquisition() 
-            data = []                                            
-            self.andor.cam.GetAcquiredData(data)
-
-        image_array = np.array(data, dtype = np.uint16)  
-        maximum = image_array.max()
-        proper_image = np.reshape(image_array, (-1, 512))
-        scaled_image = proper_image*(255.0/maximum)
-        scaled_image = scaled_image.astype(int)
-        scaled_8bit = np.array(scaled_image, dtype = np.uint8)
-
-        loc = np.argmax(scaled_8bit)/512
-        left_right = scaled_8bit[loc].argsort()[-10:][::-1]
-        left_right.sort()
-        mid = int((left_right[0]+left_right[-1])/2)
-
-        cropped = scaled_8bit[loc-7:loc+7, mid-40:mid+40]
-
-        image = imutils.resize(cropped, width=1024)
-        image = Image.fromarray(image)
-        return image
-
-    def scan(self, start_pos, length, num_steps):
-
-        if self.app.CMOSthread.scan_loc is not None:
-            scan_loc = self.app.CMOSthread.scan_loc
-            center = self.app.CMOSthread.detected_center
-            relative_coord = (scan_loc[0]-center[0],scan_loc[1]-center[1])
-            self.app.CMOSthread.scanned_locations.append(relative_coord)
-            self.app.scanned_loc_list.addItem(str(relative_coord))
-
-        self.motor.device.move_abs(start_pos/3.072)
-        step_size = length // num_steps
-
-        self.export_list.append(self.acquire_frame()) #initial frame
-
-        for i in range(num_steps):
-
-            self.motor.device.move_rel(step_size/3.072)           
-            
-            self.export_list.append(self.acquire_frame())
-
-        if len(self.export_list) != 0:
-            self.export_list[0].save("data_acquisition/scan.tif",compression="tiff_deflate",save_all=True,append_images=self.export_list[1:]) 
-            self.export_list = []
-            print "finished exporting as tif"
-
-
-    def run(self):
-        while not self.stop_event.is_set():
-            with self.andor_lock:
-                self.andor.cam.StartAcquisition() 
-                data = []                                            
-                self.andor.cam.GetAcquiredData(data)
-
-            image_array = np.array(data, dtype = np.uint16)
-            #print "andorLoop"
-
-            maximum = image_array.max()
-
-            proper_image = np.reshape(image_array, (-1, 512))
-
-            scaled_image = proper_image*(255.0/maximum)
-            scaled_image = scaled_image.astype(int)
-            scaled_8bit = np.array(scaled_image, dtype = np.uint8)
-
-            loc = np.argmax(scaled_8bit)/512
-            left_right = scaled_8bit[loc].argsort()[-10:][::-1]
-            left_right.sort()
-            mid = int((left_right[0]+left_right[-1])/2)
-
-            ################
-            ### GRAPHING ###
-            ################
-
-            graph_data = list(data)
-            graph_array = np.array(graph_data, dtype = np.uint16)
-            reshaped_graph = np.reshape(graph_array, (-1,512))
-
-            self.analyzed_row = reshaped_graph[loc][mid-40:mid+40]
-
-            #self.graphLoop()
-
-            ###############
-
-            cropped = scaled_8bit[loc-7:loc+7, mid-40:mid+40]
-
-            (h, w)= cropped.shape[:2]
-            if w <= 0 or h <= 0:
-                continue
-
-            self.image_andor = cropped
-
-            image = imutils.resize(self.image_andor, width=1024)
-            bgr_image = cv2.cvtColor(image,cv2.COLOR_GRAY2BGR)
-
-            height, width, channel = bgr_image.shape
-            bytesPerLine = 3 * width
-            qImage = QtGui.QImage(bgr_image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
-
-            self.emit(QtCore.SIGNAL('update_EMCCD_panel(PyQt_PyObject)'),qImage)
-
-    #plots graphs, similar to how graphs are plotted on andoru_test.py
-    #uses figure so both plots can be shown at same time
-    def graphLoop(self):
-
-        copied_analyzed_row = np.array(self.analyzed_row)
-
-        try:
-            FSR = float(self.app.FSR_entry.displayText())
-            SD = float(self.app.SD_entry.displayText())
-            
-            if not self.reference_btn.isChecked():
-                constant_1 = np.amax(copied_analyzed_row[:40])
-                constant_2 = np.amax(copied_analyzed_row[40:])
-                x0_1 = np.argmax(copied_analyzed_row[:40])
-                x0_2 = np.argmax(copied_analyzed_row[40:])+40
-                for i in xrange(40 - x0_1): 
-                    half_max = constant_1/2
-                    if copied_analyzed_row[:40][x0_1+i] <= half_max:
-                        gamma_1 = i*2
-                        break
-                for j in xrange(40 - (x0_2 - 40)):
-                    half_max = constant_2/2
-                    if copied_analyzed_row[40:][x0_2 - 40+j] <= half_max:
-                        gamma_2 = j*2
-                        break
-
-                delta_peaks = x0_2 - x0_1
-                BS = (FSR - delta_peaks*SD)/2
-                length_bs = len(self.brillouin_shift_list)
-                if length_bs >= 100:
-                    self.brillouin_shift_list = []
-                self.brillouin_shift_list.append(BS)
-                length_bs +=1
-
-                
-                
-                popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
-                #subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
-               
-                curve_data = (popt,pcov)
-                self.curve_signal.emit(curve_data)
-            else:
-                constant_1 = np.amax(copied_analyzed_row[:20])
-                constant_2 = np.amax(copied_analyzed_row[20:40])
-                constant_3 = np.amax(copied_analyzed_row[40:60])
-                constant_4 = np.amax(copied_analyzed_row[60:])
-                constant_5 = 100
-
-
-                x0_1 = np.argmax(copied_analyzed_row[:20])
-                x0_2 = np.argmax(copied_analyzed_row[20:40])+20
-                x0_3 = np.argmax(copied_analyzed_row[40:60])+40
-                x0_4 = np.argmax(copied_analyzed_row[60:])+60
-
-
-
-                popt, pcov = curve_fit(lorentzian_reference, self.graph.x_axis, copied_analyzed_row, p0 = np.array([1, x0_1, constant_1, 1, x0_2, constant_2, 1, x0_3, constant_3, 1, x0_4, constant_4, constant_5]))
-                #subplot.plot(self.graph.x_axis, lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
-                measured_SD = (2*self.PlasticBS - 2*self.WaterBS) / ((x0_4 - x0_1) + (x0_3 - x0_2))
-                measured_FSR = 2*self.PlasticBS - measured_SD*(x0_3 - x0_2)
-                
-                curve_data = (popt,pcov,measured_SD,measured_FSR)
-                self.curve_signal.emit(curve_data)
-
-                #self.SD.set(measured_SD)
-                #self.FSR.set(measured_FSR)
-
-        except Exception as e:
-            traceback.print_exc()
-            pass
-
-        graph_data = (copied_analyzed_row.copy(),self.brillouin_shift_list[:])
-        self.graph_signal.emit(graph_data)
-
-
-class Graph(object):
-    def __init__(self):
-        self.fig = Figure(figsize = (10, 10), dpi = 100)
-        self.x_axis = np.arange(1,81)
-
-def lorentzian(x, gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, constant_3):
-    numerator_1 = 0.5*gamma_1*constant_1
-    denominator_1 = math.pi * (x - x0_1) **2 + (0.5 * gamma_1)**2
-    numerator_2 = 0.5*gamma_2*constant_2
-    denominator_2 = math.pi * (x - x0_2) **2 + (0.5 * gamma_2)**2
-    y = (numerator_1/denominator_1) + (numerator_2/denominator_2) + constant_3
-    return y
-
-def lorentzian_reference(x, gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, gamma_3, x0_3, constant_3, gamma_4, x0_4, constant_4, constant_5):
-    numerator_1 = 0.5*gamma_1*constant_1
-    denominator_1 = math.pi * (x - x0_1) **2 + (0.5 * gamma_1)**2
-    numerator_2 = 0.5*gamma_2*constant_2
-    denominator_2 = math.pi * (x - x0_2) **2 + (0.5 * gamma_2)**2
-    numerator_3 = 0.5*gamma_3*constant_3
-    denominator_3 = math.pi * (x - x0_3) **2 + (0.5 * gamma_3)**2
-    numerator_4 = 0.5*gamma_4*constant_4
-    denominator_4 = math.pi * (x - x0_4) **2 + (0.5 * gamma_4)**2
-    y = (numerator_1/denominator_1) + (numerator_2/denominator_2) + (numerator_3/denominator_3) + (numerator_4/denominator_4) + constant_5
-    return y
         
 
 
