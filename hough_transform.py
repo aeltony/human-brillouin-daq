@@ -101,13 +101,15 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
             cv2.circle(frame_bgr,min_circle_center,min_circle_radius,(255,0,0),2)
             cv2.circle(frame_bgr,min_circle_center,2,(255,0,0),3)
             for loc in scanned_locations:
-                cv2.circle(frame_bgr,(min_circle_center[0]+loc[0],min_circle_center[1]+loc[1]),2,(255,0,255),2)
+                abs_pos = (min_circle_center[0]+loc[0],min_circle_center[1]+loc[1])
+                if abs_pos[0] >= 0 and abs_pos[0] <= dim[1] and abs_pos[1] >= 0 and abs_pos[1] <= dim[0]:
+                    cv2.circle(frame_bgr,abs_pos,2,(255,0,255),2)
 
 
         if coordinates:
             x,y = min_circle_center
-            partitions = min_circle_radius/50 + 1
-            partition_size = 50
+            partition_size = 100
+            partitions = min_circle_radius/partition_size + 1
             partition_radius = partitions*partition_size
             font = cv2.FONT_HERSHEY_SIMPLEX
             for p in range(1,partitions+1):

@@ -1,0 +1,6 @@
+Monday, July 30
+- added check in hough_transform to check if scanned location is on image
+
+#TODO
+- add image panel showing scanned locations in a stationary coordinate system, shows pupil circle
+- problem with user taking scan for frame but ending up with coordinates for following frame (thread/lock problem)

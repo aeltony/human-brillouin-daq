@@ -125,6 +125,7 @@ class App(QtGui.QWidget):
         set_coordinates_btn = QtGui.QPushButton("Set Coordinates",self)
         set_scan_loc_btn = QtGui.QPushButton("Set Scan Location",self)
         set_scan_loc_btn.setCheckable(True)
+        scanned_loc_list = QtGui.QListWidget(self)
 
         det_grid.addWidget(detection_panel_label, 0, 0, 1, 2)
         det_grid.addWidget(blur_label, 1, 0)
@@ -146,7 +147,7 @@ class App(QtGui.QWidget):
         det_grid.addWidget(apply_btn, 10, 0, 1, 2)
         det_grid.addWidget(set_coordinates_btn, 12, 0, 1, 2)
         det_grid.addWidget(set_scan_loc_btn,13, 0, 1, 2)
-
+        det_grid.addWidget(scanned_loc_list,14, 0, 1, 2)
 
         detection_panel_label.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
         blur_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
@@ -173,6 +174,7 @@ class App(QtGui.QWidget):
         self.range_entry = range_entry
         self.radius_entry = radius_entry
         self.set_scan_loc_btn = set_scan_loc_btn
+        self.scanned_loc_list = scanned_loc_list
 
         radius_btn.clicked.connect(self.CMOSthread.ask_radius_estimate)
         default_btn.clicked.connect(self.restore_default_params)
@@ -509,7 +511,7 @@ class CMOSthread(QtCore.QThread):
         self.detected_radius = None
         self.detected_center = None
         self.scan_loc = None
-        self.scanned_locations = []
+        self.scanned_locations = [] #stores locations of depth scans, in coordinate system
 
     def set_coordinates(self):
         self.coords = not self.coords
@@ -522,7 +524,7 @@ class CMOSthread(QtCore.QThread):
         self.param2 = int(self.app.param2_entry.displayText())
         self.radius_range = int(self.app.range_entry.displayText())
         self.expected_pupil_radius = int(self.app.radius_entry.displayText())
-        print "expected Pupil rdius", self.expected_pupil_radius
+        print "expected Pupil radius", self.expected_pupil_radius
 
     def ask_radius_estimate(self):
         self.popup = Popup(self)
@@ -588,9 +590,9 @@ class CMOSthread(QtCore.QThread):
             if self.medianBlur is None or self.dp is None or self.minDist is None or self.param1 is None or self.param2 is None or self.radius_range is None or self.expected_pupil_radius is None:
                 pupil_data = [plain_image,None,None]
             else:
+                start_time = time.time()
                 pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords,self.scanned_locations)
-                self.detected_center = pupil_data[1]
-                self.detected_radius = pupil_data[2]
+                print "HT run time: ",time.time() - start_time
 
             if self.app.record_btn.isChecked(): # extra check to cover for out incorrect ordering case
 
@@ -608,6 +610,10 @@ class CMOSthread(QtCore.QThread):
             self.qImage = qImage
             
             self.emit(QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),self.qImage)
+
+            #added after sending next frame because scan might be taking pupil center from next frame
+            self.detected_center = pupil_data[1]
+            self.detected_radius = pupil_data[2]
 
         
 class EMCCDthread(QtCore.QThread):
@@ -665,6 +671,7 @@ class EMCCDthread(QtCore.QThread):
             center = self.app.CMOSthread.detected_center
             relative_coord = (scan_loc[0]-center[0],scan_loc[1]-center[1])
             self.app.CMOSthread.scanned_locations.append(relative_coord)
+            self.app.scanned_loc_list.addItem(str(relative_coord))
 
         self.motor.device.move_abs(start_pos/3.072)
         step_size = length // num_steps
