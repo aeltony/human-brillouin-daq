@@ -94,7 +94,15 @@ class EMCCDthread(QtCore.QThread):
 
             #updating stored scanned locations
             self.app.CMOSthread.scanned_locations.append(relative_coord)
-            self.app.scanned_loc_list.addItem(str(relative_coord))
+            table = self.app.scanned_loc_table
+            current_row = table.rowCount()-1
+            print current_row
+            table.insertRow(current_row)
+            table_elements = [relative_coord,start_pos,length,num_steps]
+            table_items = list(map(lambda elt: QtGui.QTableWidgetItem(str(elt)),table_elements))
+
+            for col_num in range(len(table_items)):
+                table.setItem(current_row,col_num,table_items[col_num])
 
             #updating coordinate panel
             min_dim = panel_dim[0]/4
@@ -106,19 +114,6 @@ class EMCCDthread(QtCore.QThread):
                 panel_pos = (coord[0]+panel_center[0],coord[1]+panel_center[1])
                 cv2.circle(self.app.coord_panel_image,panel_pos,2,(0,255,255),2)
 
-            """
-            #crop panel image
-            max_dim += 50 #add a buffer to the edges of image
-            if max_dim >= panel_dim[0]/2:
-                cropped_image = self.app.coord_panel_image.copy()
-                print "no cropping"
-            else: 
-                print "yes cropping"
-                cropping_dim = max(min_dim,max_dim)
-                print "cropping dim", cropping_dim
-                print "min_dim,max_dim", min_dim, max_dim
-                cropped_image = self.app.coord_panel_image.copy()[panel_center[1]-cropping_dim:panel_center[1]+cropping_dim,panel_center[0]-cropping_dim:panel_center[0]+cropping_dim,:]
-            """
             resized_image = imutils.resize(self.app.coord_panel_image.copy(), width=panel_dim[0]/2)
 
             #updating coord panel

@@ -130,8 +130,20 @@ class App(QtGui.QWidget):
         set_scan_loc_btn = QtGui.QPushButton("Set Scan Location",self)
         set_scan_loc_btn.setCheckable(True)
         coord_panel = QtGui.QLabel()
-        scanned_loc_list = QtGui.QListWidget(self)
+        scanned_loc_table = QtGui.QTableWidget(1,4,self)
 
+        resized_image = imutils.resize(self.coord_panel_image.copy(), width=self.coord_panel_image.shape[0]/2)
+        coord_pixmap = self.convert_to_pixmap(resized_image)
+        coord_panel.setPixmap(coord_pixmap)
+        coord_panel.show()
+
+        headers = [QtCore.QString("pos (pixels)"),QtCore.QString("start pos (um)"),QtCore.QString("scan length (um)"),QtCore.QString("#frames")]
+        horizontal_headers = QtCore.QStringList()
+        for header in headers:
+            horizontal_headers.append(header)
+        scanned_loc_table.setHorizontalHeaderLabels(horizontal_headers)
+        scanned_loc_table.resizeColumnsToContents()
+        scanned_loc_table.horizontalHeader().setStretchLastSection(True)
 
         det_grid.addWidget(detection_panel_label, 0, 0, 1, 2)
         det_grid.addWidget(blur_label, 1, 0)
@@ -154,7 +166,7 @@ class App(QtGui.QWidget):
         det_grid.addWidget(set_coordinates_btn, 12, 0, 1, 2)
         det_grid.addWidget(set_scan_loc_btn,13, 0, 1, 2)
         det_grid.addWidget(coord_panel,0, 2, 4, 2)
-        det_grid.addWidget(scanned_loc_list, 4, 2, 4, 2)
+        det_grid.addWidget(scanned_loc_table, 4, 2, 8, 2)
 
         detection_panel_label.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
         blur_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
@@ -183,7 +195,7 @@ class App(QtGui.QWidget):
         self.radius_entry = radius_entry
         self.set_scan_loc_btn = set_scan_loc_btn
         self.coord_panel = coord_panel
-        self.scanned_loc_list = scanned_loc_list
+        self.scanned_loc_table = scanned_loc_table
 
         radius_btn.clicked.connect(self.CMOSthread.ask_radius_estimate)
         default_btn.clicked.connect(self.restore_default_params)
@@ -402,6 +414,14 @@ class App(QtGui.QWidget):
             self.CMOSthread.scan_loc = (x,y)
             self.set_scan_loc_btn.setChecked(False)
             print (x,y)
+
+
+    def convert_to_pixmap(self,image):
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        height, width, channel = image.shape
+        bytesPerLine = 3 * width
+        qimage = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
+        return QtGui.QPixmap.fromImage(qimage)
 
 
     #similar to shutters.py, called on by reference button 
