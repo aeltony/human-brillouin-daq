@@ -96,7 +96,7 @@ class App(QtGui.QWidget):
         self.heatmap.ax = self.heatmap.fig.add_subplot(111, projection='3d')
 
         self.scanned_BS_values = np.zeros(self.heatmap.X.shape)
-        self.scanned_BS_values.fill(0)
+        self.scanned_BS_values.fill(6)
 
         self.heatmap.ax.plot_surface(self.heatmap.X, self.heatmap.Y, self.scanned_BS_values, rstride=1, cstride=1, cmap='nipy_spectral_r')
 
@@ -410,34 +410,29 @@ class App(QtGui.QWidget):
 
     def update_heatmap_panel(self,BS_data):
         pos,BS_profile = BS_data
-
-        """
+        
         heatmap_coord = (pos[0]/self.resolution+24,pos[1]/self.resolution+24)
-        print "heatmap_coord: ",heatmap_coord
+
         self.scanned_BS_values[heatmap_coord] = sum(BS_profile)/len(BS_profile) #average BS value
 
-
-        points = self.scanned_locations.values() + [(0,25),(-25,0),(25,0),(0,-25)]
+        points = self.scanned_locations.values() + [(0,550),(-550,0),(550,0),(0,-550)]
         heatmap_points = list(map(lambda point: (point[0]/self.resolution+24,point[1]/self.resolution+24),points))
         values = np.array(list(map(lambda point: self.scanned_BS_values[point],heatmap_points))).reshape(-1)
-        print "values: ",values
-        print "points: ", heatmap_points
+
         points = np.array(points).reshape(-1,2)
         
         self.heatmap.fig.clf()
 
         self.heatmap.ax = self.heatmap.fig.add_subplot(111, projection='3d')
 
-
-
         grid = griddata(points,values,(self.heatmap.X,self.heatmap.Y),method="cubic")
         
 
-        self.heatmap.ax.plot_surface(self.heatmap.X, self.heatmap.Y, grid, rstride=1, cstride=1, cmap=cm.coolwarm)
+        self.heatmap.ax.plot_surface(self.heatmap.X, self.heatmap.Y, grid, rstride=1, cstride=1, cmap=cm.rainbow)
 
         Axes3D.mouse_init(self.heatmap.ax)
         self.heatmap_panel.draw()
-        """
+        
 
 
     def update_graph_panel(self,graph_data):
