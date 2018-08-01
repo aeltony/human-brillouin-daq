@@ -28,13 +28,12 @@ import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from mpl_toolkits.mplot3d import Axes3D
 
 
 class EMCCDthread(QtCore.QThread):
-
-    graph_signal = QtCore.pyqtSignal('PyQt_PyObject')
-    curve_signal = QtCore.pyqtSignal('PyQt_PyObject')
 
     def __init__(self,app):
         super(EMCCDthread,self).__init__()
@@ -81,62 +80,72 @@ class EMCCDthread(QtCore.QThread):
 
         image = imutils.resize(cropped, width=1024)
         image = Image.fromarray(image)
-        return image
 
-    def scan(self, start_pos, length, num_steps):
+        #obtain brillouin value
+        FSR = float(self.app.FSR_entry.displayText())
+        SD = float(self.app.SD_entry.displayText())
 
+        graph_data = list(data)
+        graph_array = np.array(graph_data, dtype = np.uint16)
+        reshaped_graph = np.reshape(graph_array, (-1,512))
+
+        analyzed_row = reshaped_graph[loc][mid-40:mid+40]
+
+        x0_1 = np.argmax(analyzed_row[:40])
+        x0_2 = np.argmax(analyzed_row[40:])+40
+        delta_peaks = x0_2 - x0_1
+        BS = (FSR - delta_peaks*SD)/2
+
+        return image, BS
+
+
+    def update_scanned_location(self, relative_coord, BS_profile, start_pos, length, num_steps):
         if self.app.CMOSthread.scan_loc is not None:
-            scan_loc = self.app.CMOSthread.scan_loc
-            center = self.app.CMOSthread.detected_center
-            panel_dim = self.app.coord_panel_image.shape
-            panel_center = (panel_dim[1]/2,panel_dim[0]/2)
-            relative_coord = (scan_loc[0]-center[0],scan_loc[1]-center[1])
-
             #updating stored scanned locations
-            self.app.CMOSthread.scanned_locations.append(relative_coord)
+            loc_ID = self.app.get_current_ID()
+            self.app.scanned_locations[loc_ID] = relative_coord
+            average_shift = sum(BS_profile)/len(BS_profile)
+
             table = self.app.scanned_loc_table
             current_row = table.rowCount()-1
-            print current_row
             table.insertRow(current_row)
-            table_elements = [relative_coord,start_pos,length,num_steps]
+            table_elements = [relative_coord,average_shift,start_pos,length,num_steps,loc_ID]
             table_items = list(map(lambda elt: QtGui.QTableWidgetItem(str(elt)),table_elements))
 
             for col_num in range(len(table_items)):
                 table.setItem(current_row,col_num,table_items[col_num])
+            
+            self.app.set_coord_panel() #update coord panel
 
-            #updating coordinate panel
-            min_dim = panel_dim[0]/4
-            max_dim = 0
-            for coord in self.app.CMOSthread.scanned_locations:
-                if max(coord) > max_dim:
-                    max_dim = max(coord)
-                    print "max_dim: ",max_dim
-                panel_pos = (coord[0]+panel_center[0],coord[1]+panel_center[1])
-                cv2.circle(self.app.coord_panel_image,panel_pos,2,(0,255,255),2)
+    def scan(self, start_pos, length, num_steps):
 
-            resized_image = imutils.resize(self.app.coord_panel_image.copy(), width=panel_dim[0]/2)
-
-            #updating coord panel
-            image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)
-            height, width, channel = image.shape
-            bytesPerLine = 3 * width
-            coord_image = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
-            pixmap = QtGui.QPixmap.fromImage(coord_image)
-            self.app.coord_panel.setPixmap(pixmap)
-            self.app.coord_panel.show()
-
-
-        #move into position to start scan
+        ############
+        ### SCAN ###
+        ############
+        
         self.app.move_motor_abs(start_pos)
         step_size = length // num_steps
+        BS_profile = []
 
-        self.export_list.append(self.acquire_frame()) #initial frame
+        image,BS = self.acquire_frame()
+        BS_profile.append(BS)
+        self.export_list.append(image) #initial frame
 
         for i in range(num_steps):
 
             self.app.move_motor_rel(step_size)           
             
-            self.export_list.append(self.acquire_frame())
+            image,BS = self.acquire_frame()
+            BS_profile.append(BS)
+            self.export_list.append(image)
+
+
+        scan_loc = self.app.CMOSthread.scan_loc
+        center = self.app.CMOSthread.detected_center
+        relative_coord = (scan_loc[0]-center[0],scan_loc[1]-center[1])
+        self.update_scanned_location(relative_coord,BS_profile,start_pos,length,num_steps)
+
+        self.emit(QtCore.SIGNAL('update_heatmap_panel(PyQt_PyObject)'),(relative_coord,BS_profile))
 
         #EXPORT
         if len(self.export_list) != 0:
@@ -178,7 +187,7 @@ class EMCCDthread(QtCore.QThread):
 
             self.analyzed_row = reshaped_graph[loc][mid-40:mid+40]
 
-            #self.graphLoop()
+            self.graphLoop()
 
             ###############
 
@@ -209,11 +218,13 @@ class EMCCDthread(QtCore.QThread):
             FSR = float(self.app.FSR_entry.displayText())
             SD = float(self.app.SD_entry.displayText())
             
-            if not self.reference_btn.isChecked():
+            if not self.app.reference_btn.isChecked():
                 constant_1 = np.amax(copied_analyzed_row[:40])
                 constant_2 = np.amax(copied_analyzed_row[40:])
                 x0_1 = np.argmax(copied_analyzed_row[:40])
                 x0_2 = np.argmax(copied_analyzed_row[40:])+40
+                gamma_1 = None
+                gamma_2 = None
                 for i in xrange(40 - x0_1): 
                     half_max = constant_1/2
                     if copied_analyzed_row[:40][x0_1+i] <= half_max:
@@ -228,18 +239,18 @@ class EMCCDthread(QtCore.QThread):
                 delta_peaks = x0_2 - x0_1
                 BS = (FSR - delta_peaks*SD)/2
                 length_bs = len(self.brillouin_shift_list)
-                if length_bs >= 100:
+                if length_bs >= 25:
                     self.brillouin_shift_list = []
                 self.brillouin_shift_list.append(BS)
                 length_bs +=1
 
                 
-                
-                popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
-                #subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
-               
-                curve_data = (popt,pcov)
-                self.curve_signal.emit(curve_data)
+                if gamma_1 is not None and gamma_2 is not None:
+                    popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
+                    #subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
+                   
+                    curve_data = (popt,pcov)
+                    self.emit(QtCore.SIGNAL('draw_curve(PyQt_PyObject'),curve_data)
             else:
                 constant_1 = np.amax(copied_analyzed_row[:20])
                 constant_2 = np.amax(copied_analyzed_row[20:40])
@@ -261,7 +272,7 @@ class EMCCDthread(QtCore.QThread):
                 measured_FSR = 2*self.PlasticBS - measured_SD*(x0_3 - x0_2)
                 
                 curve_data = (popt,pcov,measured_SD,measured_FSR)
-                self.curve_signal.emit(curve_data)
+                self.emit(QtCore.SIGNAL('draw_curve(PyQt_PyObject'),curve_data)
 
                 #self.SD.set(measured_SD)
                 #self.FSR.set(measured_FSR)
@@ -271,13 +282,31 @@ class EMCCDthread(QtCore.QThread):
             pass
 
         graph_data = (copied_analyzed_row.copy(),self.brillouin_shift_list[:])
-        self.graph_signal.emit(graph_data)
+        self.emit(QtCore.SIGNAL('update_graph_panel(PyQt_PyObject)'),graph_data)
 
 
 class Graph(object):
     def __init__(self):
         self.fig = Figure(figsize = (10, 10), dpi = 100)
         self.x_axis = np.arange(1,81)
+
+class HeatMapCanvas(FigureCanvasQTAgg):
+    def __init__(self):
+        super(HeatMapCanvas,self).__init__()
+
+
+class HeatMapGraph:
+    def __init__(self,resolution):
+        self.fig = Figure(figsize = (5,5), dpi = 100)
+        self.ax = None
+
+        X = np.arange(-600, 600, resolution)
+        Y = np.arange(-600, 600, resolution)
+        self.X, self.Y = np.meshgrid(X, Y)
+
+    def set_canvas(self,canvas):
+        self.fig.set_canvas(canvas)
+
 
 def lorentzian(x, gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, constant_3):
     numerator_1 = 0.5*gamma_1*constant_1

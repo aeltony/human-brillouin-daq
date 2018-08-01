@@ -100,7 +100,7 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
         if min_circle_center is not None and min_circle_radius is not None:
             cv2.circle(frame_bgr,min_circle_center,min_circle_radius,(255,0,0),2)
             cv2.circle(frame_bgr,min_circle_center,2,(255,0,0),3)
-            for loc in scanned_locations:
+            for loc in scanned_locations.values():
                 abs_pos = (min_circle_center[0]+loc[0],min_circle_center[1]+loc[1])
                 if abs_pos[0] >= 0 and abs_pos[0] <= dim[1] and abs_pos[1] >= 0 and abs_pos[1] <= dim[0]:
                     cv2.circle(frame_bgr,abs_pos,2,(0,255,255),2)

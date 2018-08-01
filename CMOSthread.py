@@ -32,8 +32,6 @@ class Popup(QtGui.QWidget):
 
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
-        
-        #self.radius_signal = App.radius_signal
 
         pixmap = QtGui.QPixmap.fromImage(self.qImage_snapshot)
 
@@ -100,22 +98,9 @@ class CMOSthread(QtCore.QThread):
         self.detected_radius = None
         self.detected_center = None
         self.scan_loc = None
-        self.scanned_locations = [] #stores locations of depth scans, in coordinate system
 
     def set_coordinates(self):
         self.coords = not self.coords
-
-        dim = self.app.coord_panel_image.shape
-        center = (dim[1]/2,dim[0]/2)
-        num_circles = dim[0]/100 + 1
- 
-        cv2.circle(self.app.coord_panel_image,center,0,(0,255,0),2) #center
-        for i in range(1,num_circles+1):
-            cv2.circle(self.app.coord_panel_image,center,100*i,(0,255,0),1)
-        cv2.line(self.app.coord_panel_image,(center[0],0),(center[0],dim[0]),(0,255,0),1)
-        cv2.line(self.app.coord_panel_image,(0,center[1]),(dim[1],center[1]),(0,255,0),1)
-
-        self.app.coord_panel.show()
 
     def apply_parameters(self):
         self.medianBlur = int(self.app.blur_entry.displayText())
@@ -193,7 +178,7 @@ class CMOSthread(QtCore.QThread):
                 pupil_data = [plain_image,None,None]
             else:
                 #start_time = time.time()
-                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords,self.scanned_locations)
+                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords,self.app.scanned_locations)
                 #print "HT run time: ",time.time() - start_time
 
             if self.app.record_btn.isChecked(): # extra check to cover for out incorrect ordering case

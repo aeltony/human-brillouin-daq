@@ -32,10 +32,11 @@ matplotlib.use('TkAgg')
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from scipy.optimize import curve_fit
+from scipy.interpolate import griddata
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
 
 class App(QtGui.QWidget):
-
-    radius_signal = QtCore.pyqtSignal('PyQt_PyObject')
 
     def __init__(self):
         super(App,self).__init__()
@@ -50,6 +51,7 @@ class App(QtGui.QWidget):
         self.andor = device_init.Andor_Camera()
         self.motor = device_init.Motor()
         self.graph = EMCCDthread.Graph()
+        self.heatmap = EMCCDthread.HeatMapGraph(25)
 
         self.brillouin_shift_list = []
         self.PlasticBS =  9.6051
@@ -68,22 +70,39 @@ class App(QtGui.QWidget):
         self.andor_export_image = None
         self.expected_pupil_radius = None
         self.popup = None
-        self.coord_panel_image = np.zeros((1030,1030,3), np.uint8)
+        self.scanned_locations = {} #maps unique id to scanned location in coordinate system
+        self.current_ID = 10000
+        self.resolution = 25
+
+        self.coord_panel_image = None
 
         self.CMOSthread = CMOSthread.CMOSthread(self)
         self.connect(self.CMOSthread,QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),self.update_CMOS_panel)
 
-
         self.EMCCDthread = EMCCDthread.EMCCDthread(self)
         self.connect(self.EMCCDthread,QtCore.SIGNAL('update_EMCCD_panel(PyQt_PyObject)'),self.update_EMCCD_panel)
-        #self.EMCCDthread.graph_signal.connect(self.update_graph_panel)
-        #self.EMCCDthread.curve_signal.connect(self.draw_curve)
+        self.connect(self.EMCCDthread,QtCore.SIGNAL('update_graph_panel(PyQt_PyObject)'),self.update_graph_panel)
+        self.connect(self.EMCCDthread,QtCore.SIGNAL('draw_curve(PyQt_PyObject)'),self.draw_curve)
+        self.connect(self.EMCCDthread,QtCore.SIGNAL('update_heatmap_panel(PyQt_PyObject)'),self.update_heatmap_panel)
 
         ### CMOS AND EMCCD PANEL ###
         self.cmos_panel = QtGui.QLabel()
         self.cmos_panel.mousePressEvent = self.handle_click
         self.emccd_panel = QtGui.QLabel()
         self.canvas = FigureCanvasQTAgg(self.graph.fig)
+        self.coord_panel = QtGui.QLabel()
+        self.set_coord_panel()
+        self.heatmap_panel = FigureCanvasQTAgg(self.heatmap.fig)
+        self.heatmap.ax = self.heatmap.fig.add_subplot(111, projection='3d')
+
+        self.scanned_BS_values = np.zeros(self.heatmap.X.shape)
+        self.scanned_BS_values.fill(0)
+
+        self.heatmap.ax.plot_surface(self.heatmap.X, self.heatmap.Y, self.scanned_BS_values, rstride=1, cstride=1, cmap='nipy_spectral_r')
+
+        self.heatmap.set_canvas(self.heatmap_panel)
+        Axes3D.mouse_init(self.heatmap.ax)
+        self.heatmap_panel.draw()
 
         self.mainUI()
 
@@ -94,11 +113,13 @@ class App(QtGui.QWidget):
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
 
+        grid.addWidget(self.coord_panel, 0, 2, 4, 4)
+        grid.addWidget(self.heatmap_panel, 4, 2, 4, 4)
+        grid.addWidget(self.cmos_panel, 0, 6, 11, 7)
+        grid.addWidget(self.emccd_panel, 0, 13, 6, 5)
+        grid.addWidget(self.canvas, 6, 13, 3, 5)
 
-        grid.addWidget(self.cmos_panel,0,4,11,7)
-        grid.addWidget(self.emccd_panel,0,11,6,5)
-        grid.addWidget(self.canvas,6,11,3,5)
-
+        self.coord_panel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
         self.cmos_panel.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
         
         #############################
@@ -106,7 +127,7 @@ class App(QtGui.QWidget):
         #############################
 
         det_grid = QtGui.QGridLayout()
-        grid.addLayout(det_grid,0,0,11,4)
+        grid.addLayout(det_grid,0,0,11,2)
 
         detection_panel_label = QtGui.QLabel("Pupil Detection Panel")
         blur_label = QtGui.QLabel("medianBlur =")
@@ -129,21 +150,6 @@ class App(QtGui.QWidget):
         set_coordinates_btn = QtGui.QPushButton("Set Coordinates",self)
         set_scan_loc_btn = QtGui.QPushButton("Set Scan Location",self)
         set_scan_loc_btn.setCheckable(True)
-        coord_panel = QtGui.QLabel()
-        scanned_loc_table = QtGui.QTableWidget(1,4,self)
-
-        resized_image = imutils.resize(self.coord_panel_image.copy(), width=self.coord_panel_image.shape[0]/2)
-        coord_pixmap = self.convert_to_pixmap(resized_image)
-        coord_panel.setPixmap(coord_pixmap)
-        coord_panel.show()
-
-        headers = [QtCore.QString("pos (pixels)"),QtCore.QString("start pos (um)"),QtCore.QString("scan length (um)"),QtCore.QString("#frames")]
-        horizontal_headers = QtCore.QStringList()
-        for header in headers:
-            horizontal_headers.append(header)
-        scanned_loc_table.setHorizontalHeaderLabels(horizontal_headers)
-        scanned_loc_table.resizeColumnsToContents()
-        scanned_loc_table.horizontalHeader().setStretchLastSection(True)
 
         det_grid.addWidget(detection_panel_label, 0, 0, 1, 2)
         det_grid.addWidget(blur_label, 1, 0)
@@ -164,9 +170,7 @@ class App(QtGui.QWidget):
         det_grid.addWidget(default_btn, 9, 0, 1, 2)
         det_grid.addWidget(apply_btn, 10, 0, 1, 2)
         det_grid.addWidget(set_coordinates_btn, 12, 0, 1, 2)
-        det_grid.addWidget(set_scan_loc_btn,13, 0, 1, 2)
-        det_grid.addWidget(coord_panel,0, 2, 4, 2)
-        det_grid.addWidget(scanned_loc_table, 4, 2, 8, 2)
+        det_grid.addWidget(set_scan_loc_btn, 13, 0, 1, 2)
 
         detection_panel_label.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
         blur_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
@@ -176,7 +180,6 @@ class App(QtGui.QWidget):
         param2_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         range_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         radius_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
-        coord_panel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
 
         blur_entry.setText("15")
         dp_entry.setText("3.0")
@@ -194,8 +197,6 @@ class App(QtGui.QWidget):
         self.range_entry = range_entry
         self.radius_entry = radius_entry
         self.set_scan_loc_btn = set_scan_loc_btn
-        self.coord_panel = coord_panel
-        self.scanned_loc_table = scanned_loc_table
 
         radius_btn.clicked.connect(self.CMOSthread.ask_radius_estimate)
         default_btn.clicked.connect(self.restore_default_params)
@@ -203,12 +204,41 @@ class App(QtGui.QWidget):
         set_coordinates_btn.clicked.connect(self.CMOSthread.set_coordinates)
 
 
+        #################################
+        ### COORDINATE TRACKING PANEL ###
+        #################################
+
+        coord_grid = QtGui.QGridLayout()
+        grid.addLayout(coord_grid,8,2,10,4)
+
+        scanned_loc_table = QtGui.QTableWidget(1,6,self)
+        delete_btn = QtGui.QPushButton("Delete Selected",self)
+        clear_btn = QtGui.QPushButton("Clear",self)
+
+        headers = [QtCore.QString("pos (pixels)"),QtCore.QString("average shift (GHz)"),QtCore.QString("start pos (um)"),QtCore.QString("scan length (um)"),QtCore.QString("#frames"),QtCore.QString("ID")]
+        horizontal_headers = QtCore.QStringList()
+        for header in headers:
+            horizontal_headers.append(header)
+        scanned_loc_table.setHorizontalHeaderLabels(horizontal_headers)
+        scanned_loc_table.resizeColumnsToContents()
+        scanned_loc_table.horizontalHeader().setStretchLastSection(True)
+
+        coord_grid.addWidget(scanned_loc_table, 0, 0, 5, 2)
+        coord_grid.addWidget(delete_btn, 5, 0, 1, 1)
+        coord_grid.addWidget(clear_btn, 5, 1, 1, 1)
+
+        self.scanned_loc_table = scanned_loc_table
+
+        delete_btn.clicked.connect(self.delete_entries)
+        clear_btn.clicked.connect(self.clear_table)
+        
+
         ##########################
         ### PUPIL CAMERA PANEL ###
         ##########################
 
         cam_grid = QtGui.QGridLayout()
-        grid.addLayout(cam_grid,11,4,1,2)
+        grid.addLayout(cam_grid,11,6,1,2)
 
         snapshot_btn = QtGui.QPushButton("Take Picture",self)
         record_btn = QtGui.QPushButton("Record",self)
@@ -226,7 +256,7 @@ class App(QtGui.QWidget):
         ###################
 
         graph_grid = QtGui.QGridLayout()
-        grid.addLayout(graph_grid,11,6,1,5)
+        grid.addLayout(graph_grid,11,8,1,5)
 
         reference_btn = QtGui.QPushButton("Reference",self)
         reference_btn.setCheckable(True)
@@ -257,7 +287,7 @@ class App(QtGui.QWidget):
         ###################
 
         motor_grid = QtGui.QGridLayout()
-        grid.addLayout(motor_grid,12,4,2,7)
+        grid.addLayout(motor_grid,12,6,2,7)
 
         motor_label = QtGui.QLabel("Motor Control")
         home_btn = QtGui.QPushButton("Home",self)
@@ -295,7 +325,7 @@ class App(QtGui.QWidget):
         #############################
 
         data_grid = QtGui.QGridLayout()
-        grid.addLayout(data_grid,14,4,2,4)
+        grid.addLayout(data_grid,14,6,2,4)
 
         start_pos_label = QtGui.QLabel("Start Position(um)")
         start_pos = QtGui.QLineEdit()
@@ -320,7 +350,7 @@ class App(QtGui.QWidget):
         #######################################
 
         vel_grid = QtGui.QGridLayout()
-        grid.addLayout(vel_grid,14,8,2,2)
+        grid.addLayout(vel_grid,14,10,2,2)
 
         velocity_label = QtGui.QLabel("Velocity")
         velocity_entry = QtGui.QLineEdit()
@@ -378,6 +408,38 @@ class App(QtGui.QWidget):
         self.emccd_panel.setPixmap(pixmap)
         self.emccd_panel.show()
 
+    def update_heatmap_panel(self,BS_data):
+        pos,BS_profile = BS_data
+
+        """
+        heatmap_coord = (pos[0]/self.resolution+24,pos[1]/self.resolution+24)
+        print "heatmap_coord: ",heatmap_coord
+        self.scanned_BS_values[heatmap_coord] = sum(BS_profile)/len(BS_profile) #average BS value
+
+
+        points = self.scanned_locations.values() + [(0,25),(-25,0),(25,0),(0,-25)]
+        heatmap_points = list(map(lambda point: (point[0]/self.resolution+24,point[1]/self.resolution+24),points))
+        values = np.array(list(map(lambda point: self.scanned_BS_values[point],heatmap_points))).reshape(-1)
+        print "values: ",values
+        print "points: ", heatmap_points
+        points = np.array(points).reshape(-1,2)
+        
+        self.heatmap.fig.clf()
+
+        self.heatmap.ax = self.heatmap.fig.add_subplot(111, projection='3d')
+
+
+
+        grid = griddata(points,values,(self.heatmap.X,self.heatmap.Y),method="cubic")
+        
+
+        self.heatmap.ax.plot_surface(self.heatmap.X, self.heatmap.Y, grid, rstride=1, cstride=1, cmap=cm.coolwarm)
+
+        Axes3D.mouse_init(self.heatmap.ax)
+        self.heatmap_panel.draw()
+        """
+
+
     def update_graph_panel(self,graph_data):
 
         copied_analyzed_row, brillouin_shift_list = graph_data
@@ -390,7 +452,7 @@ class App(QtGui.QWidget):
         self.brillouin_plot = self.graph.fig.add_subplot(212)
 
         self.subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
-        #self.brillouin_plot.scatter(np.arange(1, len(brillouin_shift_list)+1), np.array(brillouin_shift_list))
+        self.brillouin_plot.scatter(np.arange(1, len(brillouin_shift_list)+1), np.array(brillouin_shift_list))
 
         self.canvas.draw()
 
@@ -415,13 +477,64 @@ class App(QtGui.QWidget):
             self.set_scan_loc_btn.setChecked(False)
             print (x,y)
 
-
     def convert_to_pixmap(self,image):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         height, width, channel = image.shape
         bytesPerLine = 3 * width
         qimage = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
         return QtGui.QPixmap.fromImage(qimage)
+
+    def get_current_ID(self):
+        return_id = self.current_ID
+        self.current_ID += 1
+        return return_id
+
+    def set_coord_panel(self):
+
+        self.coord_panel_image = np.zeros((1030,1030,3), np.uint8)
+
+        dim = self.coord_panel_image.shape
+        center = (dim[1]/2,dim[0]/2)
+        num_circles = dim[0]/100 + 1
+ 
+        cv2.circle(self.coord_panel_image,center,0,(0,255,0),2) #center
+        for i in range(1,num_circles+1):
+            cv2.circle(self.coord_panel_image,center,100*i,(0,255,0),1)
+        cv2.line(self.coord_panel_image,(center[0],0),(center[0],dim[0]),(0,255,0),1)
+        cv2.line(self.coord_panel_image,(0,center[1]),(dim[1],center[1]),(0,255,0),1)
+
+        panel_center = (dim[1]/2,dim[0]/2)
+
+        #plotting points on coord panel
+        for coord in self.scanned_locations.values():
+            panel_pos = (coord[0]+panel_center[0],coord[1]+panel_center[1])
+            cv2.circle(self.coord_panel_image,panel_pos,2,(0,255,255),2)
+
+        resized_image = imutils.resize(self.coord_panel_image, width=dim[0]/2)
+        coord_pixmap = self.convert_to_pixmap(resized_image)
+        self.coord_panel.setPixmap(coord_pixmap)
+        self.coord_panel.show()
+
+
+    def delete_entries(self):
+        selected_items = self.scanned_loc_table.selectedItems()
+        selected_row_set = set(map(lambda item: item.row(),selected_items))
+        sorted_row_set = sorted(list(selected_row_set),reverse=True)
+
+        for row in selected_row_set:
+            ID = self.scanned_loc_table.item(row,5).text()
+            del self.scanned_locations[int(ID)]
+        self.set_coord_panel() #resets the coord panel to show updated removal of points
+
+        for row in sorted_row_set:
+            self.scanned_loc_table.removeRow(row)
+
+
+    def clear_table(self):
+        self.scanned_loc_table.clearContents()
+        self.scanned_loc_table.setRowCount(1)
+        self.scanned_locations = {}
+        self.set_coord_panel()
 
 
     #similar to shutters.py, called on by reference button 
