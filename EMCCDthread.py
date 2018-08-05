@@ -46,6 +46,9 @@ class EMCCDthread(QtCore.QThread):
         self.andor_lock = app.andor_lock
         self.condition = app.condition
 
+        self.PlasticBS =  9.6051
+        self.WaterBS = 5.1157
+
         self.image = None
         self.image_andor = None
         self.analyzed_row = np.zeros(80)
@@ -106,16 +109,17 @@ class EMCCDthread(QtCore.QThread):
             self.app.scanned_locations[loc_ID] = relative_coord
             average_shift = sum(BS_profile)/len(BS_profile)
 
+            display_coord = (relative_coord[0],-relative_coord[1])
             table = self.app.scanned_loc_table
             current_row = table.rowCount()-1
             table.insertRow(current_row)
-            table_elements = [relative_coord,average_shift,start_pos,length,num_steps,loc_ID]
+            table_elements = [display_coord,average_shift,start_pos,length,num_steps,loc_ID]
             table_items = list(map(lambda elt: QtGui.QTableWidgetItem(str(elt)),table_elements))
 
             for col_num in range(len(table_items)):
                 table.setItem(current_row,col_num,table_items[col_num])
             
-            self.app.set_coord_panel() #update coord panel
+            self.app.CMOSthread.update_coord_panel() #update coord panel
 
     def scan(self, start_pos, length, num_steps):
 
@@ -140,19 +144,23 @@ class EMCCDthread(QtCore.QThread):
             self.export_list.append(image)
 
 
+        # scan updates
         scan_loc = self.app.CMOSthread.scan_loc
-        center = self.app.CMOSthread.detected_center
-        relative_coord = (scan_loc[0]-center[0],scan_loc[1]-center[1])
-        self.update_scanned_location(relative_coord,BS_profile,start_pos,length,num_steps)
+        center = self.app.detected_center
 
-        self.emit(QtCore.SIGNAL('update_heatmap_panel(PyQt_PyObject)'),(relative_coord,BS_profile))
+        if scan_loc is not None:
+            relative_coord = (scan_loc[0]-center[0],scan_loc[1]-center[1])
+            self.update_scanned_location(relative_coord,BS_profile,start_pos,length,num_steps)
+
+            self.emit(QtCore.SIGNAL('update_heatmap_panel(PyQt_PyObject)'),(relative_coord,BS_profile))
 
         #EXPORT
+        """
         if len(self.export_list) != 0:
             self.export_list[0].save("data_acquisition/scan.tif",compression="tiff_deflate",save_all=True,append_images=self.export_list[1:]) 
             self.export_list = []
             print "finished exporting as tif"
-
+        """
 
     def run(self):
         while not self.stop_event.is_set():
@@ -246,11 +254,10 @@ class EMCCDthread(QtCore.QThread):
 
                 
                 if gamma_1 is not None and gamma_2 is not None:
-                    popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
-                    #subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
-                   
-                    curve_data = (popt,pcov)
-                    self.emit(QtCore.SIGNAL('draw_curve(PyQt_PyObject'),curve_data)
+                    #popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
+                    pass
+                    #curve_data = (popt,pcov)
+                    #self.emit(QtCore.SIGNAL('draw_curve(PyQt_PyObject'),curve_data)
             else:
                 constant_1 = np.amax(copied_analyzed_row[:20])
                 constant_2 = np.amax(copied_analyzed_row[20:40])
@@ -267,7 +274,7 @@ class EMCCDthread(QtCore.QThread):
 
 
                 popt, pcov = curve_fit(lorentzian_reference, self.graph.x_axis, copied_analyzed_row, p0 = np.array([1, x0_1, constant_1, 1, x0_2, constant_2, 1, x0_3, constant_3, 1, x0_4, constant_4, constant_5]))
-                #subplot.plot(self.graph.x_axis, lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
+
                 measured_SD = (2*self.PlasticBS - 2*self.WaterBS) / ((x0_4 - x0_1) + (x0_3 - x0_2))
                 measured_FSR = 2*self.PlasticBS - measured_SD*(x0_3 - x0_2)
                 
@@ -287,22 +294,31 @@ class EMCCDthread(QtCore.QThread):
 
 class Graph(object):
     def __init__(self):
-        self.fig = Figure(figsize = (10, 10), dpi = 100)
+        self.fig = Figure(figsize = (10, 10), dpi = 100, tight_layout = True)
         self.x_axis = np.arange(1,81)
-
-class HeatMapCanvas(FigureCanvasQTAgg):
-    def __init__(self):
-        super(HeatMapCanvas,self).__init__()
 
 
 class HeatMapGraph:
     def __init__(self,resolution):
         self.fig = Figure(figsize = (5,5), dpi = 100)
         self.ax = None
+        self.set_resolution(resolution,-600,600,-600,600)
 
-        X = np.arange(-600, 600, resolution)
-        Y = np.arange(-600, 600, resolution)
-        self.X, self.Y = np.meshgrid(X, Y)
+    def set_resolution(self,resolution,min_x,max_x,min_y,max_y):
+        self.res = resolution
+        x_range = max_x-min_x
+        y_range = max_y-min_y
+        diff = math.ceil(abs((x_range - y_range)/2))
+        if x_range > y_range:
+            min_y -= diff
+            max_y += diff
+        elif y_range > x_range:
+            min_x -= diff
+            max_x += diff
+
+        X = np.arange(min_x/self.res*self.res,math.ceil(max_x/self.res)*self.res+1,self.res)
+        Y = np.arange(min_y/self.res*self.res,math.ceil(max_y/self.res)*self.res+1,self.res)
+        self.X, self.Y = np.meshgrid(X,Y)
 
     def set_canvas(self,canvas):
         self.fig.set_canvas(canvas)

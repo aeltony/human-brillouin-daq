@@ -75,7 +75,7 @@ class Motor(object):
         self.port = zs.BinarySerial("COM11", timeout = 20, inter_char_timeout = 0.05)
         self.device = zs.BinaryDevice(self.port, 1)
         self.device.home()
-        self.device.send(37,64)
+        #self.device.send(37,128)
 
         """
         reply = self.port.read()

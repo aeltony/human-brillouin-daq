@@ -49,7 +49,7 @@ class App(QtGui.QWidget):
         self.heatmap.set_canvas(self.heatmap_panel)
         Axes3D.mouse_init(self.heatmap.ax)
 
-        self.heatmap.fig.suptitle("Brillouin Shift Frequency 3D Map",  fontsize=12)
+        self.heatmap.fig.suptitle("Brillouin Shift Frequency Map",  fontsize=12)
         self.heatmap.ax.set_xlabel('x (pixels)')
         self.heatmap.ax.set_ylabel('y (pixels)')
         self.heatmap.ax.set_zlabel('Average Brillouin shift (GHz)')

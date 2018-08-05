@@ -83,6 +83,9 @@ class CMOSthread(QtCore.QThread):
         self.frame.announceFrame()
         self.qImage = None
 
+        self.coord_panel_image = None
+        self.update_coord_panel() #initializes coord panel image
+
         self.pupil_video_frames = []
         self.pupil_data_list = []
         self.medianBlur = None
@@ -95,9 +98,30 @@ class CMOSthread(QtCore.QThread):
         self.popup = None
 
         self.coords = False
-        self.detected_radius = None
-        self.detected_center = None
         self.scan_loc = None
+
+    #only updates plotted scanned points in coord panel image
+    def update_coord_panel(self):
+
+        self.coord_panel_image = np.zeros((1030,1030,3), np.uint8)
+
+        dim = self.coord_panel_image.shape
+        center = (dim[1]/2,dim[0]/2)
+        num_circles = dim[0]/100 + 1
+ 
+        cv2.circle(self.coord_panel_image,center,0,(0,255,0),2) #center
+        for i in range(1,num_circles+1):
+            cv2.circle(self.coord_panel_image,center,100*i,(0,255,0),1)
+        cv2.line(self.coord_panel_image,(center[0],0),(center[0],dim[0]),(0,255,0),1)
+        cv2.line(self.coord_panel_image,(0,center[1]),(dim[1],center[1]),(0,255,0),1)
+
+        panel_center = (dim[1]/2,dim[0]/2)
+
+        #plotting points on coord panel
+        for coord in self.app.scanned_locations.values():
+            panel_pos = (coord[0]+panel_center[0],coord[1]+panel_center[1])
+            cv2.circle(self.coord_panel_image,panel_pos,2,(0,255,255),2)
+
 
     def set_coordinates(self):
         self.coords = not self.coords
@@ -161,19 +185,17 @@ class CMOSthread(QtCore.QThread):
             image_arr = np.ndarray(buffer = imgData,
                            dtype = np.uint8,
                            shape = (self.frame.height,self.frame.width))    
-            
-            
             resized_image = imutils.resize(image_arr, width=1024)
-
             plain_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2BGR)
 
+            #set scan location crosshair
             if self.scan_loc is not None:
                 size = 20
                 dim = plain_image.shape
                 cv2.line(plain_image,(self.scan_loc[0],min(self.scan_loc[1]+size,dim[0])),(self.scan_loc[0],max(self.scan_loc[1]-size,0)),(0,255,0),1)
                 cv2.line(plain_image,(min(self.scan_loc[0]+size,dim[1]),self.scan_loc[1]),(max(self.scan_loc[0]-size,0),self.scan_loc[1]),(0,255,0),1)
 
-
+            #run pupil detection
             if self.medianBlur is None or self.dp is None or self.minDist is None or self.param1 is None or self.param2 is None or self.radius_range is None or self.expected_pupil_radius is None:
                 pupil_data = [plain_image,None,None]
             else:
@@ -181,12 +203,42 @@ class CMOSthread(QtCore.QThread):
                 pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords,self.app.scanned_locations)
                 #print "HT run time: ",time.time() - start_time
 
-            if self.app.record_btn.isChecked(): # extra check to cover for out incorrect ordering case
-
+            #record subroutine
+            if self.app.record_btn.isChecked():
                 self.pupil_video_frames.append(pupil_data[0].copy())
                 self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
                 print "added frame to list"
             
+
+            circle_image = self.coord_panel_image.copy()
+            image_dim = circle_image.shape
+            detected_center = pupil_data[1]
+            detected_radius = pupil_data[2]
+
+            #update pupil radius and scan location for coord image panel
+            if detected_center is not None and detected_radius is not None:
+                image_center = (image_dim[1]/2,image_dim[0]/2)
+
+                if self.scan_loc is not None:
+                    size = 20
+                    scan_loc = self.scan_loc
+                    rel_scan_loc = (scan_loc[0]-detected_center[0],scan_loc[1]-detected_center[1])
+                    panel_loc = (rel_scan_loc[0]+image_center[0],rel_scan_loc[1]+image_center[1])
+
+                    cv2.line(circle_image,(panel_loc[0],min(panel_loc[1]+size,image_dim[0])),(panel_loc[0],max(panel_loc[1]-size,0)),(0,255,0),1)
+                    cv2.line(circle_image,(min(panel_loc[0]+size,image_dim[1]),panel_loc[1]),(max(panel_loc[0]-size,0),panel_loc[1]),(0,255,0),1)
+                
+                cv2.circle(circle_image,image_center,detected_radius,(255,0,0),2)
+
+                resized_image = imutils.resize(circle_image, width=image_dim[0]/2)
+            else:
+                resized_image = imutils.resize(self.coord_panel_image, width=image_dim[0]/2)
+
+            #process images for export
+            image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)
+            height, width, channel = image.shape
+            bytesPerLine = 3 * width
+            coord_qImage = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
 
             # convets image to form used by pyqt
             image = cv2.cvtColor(pupil_data[0].copy(), cv2.COLOR_BGR2RGB)
@@ -194,11 +246,8 @@ class CMOSthread(QtCore.QThread):
             bytesPerLine = 3 * width
             qImage = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
 
+            self.coord_qImage = coord_qImage
             self.qImage = qImage
 
-            #added after sending next frame because scan might be taking pupil center from next frame
-            self.detected_center = pupil_data[1]
-            self.detected_radius = pupil_data[2]
-
-            self.emit(QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),self.qImage)
+            self.emit(QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),(self.coord_qImage,self.qImage,detected_center,detected_radius))
 
