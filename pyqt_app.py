@@ -425,6 +425,7 @@ class App(QtGui.QWidget):
 
         self.heatmap.ax = self.heatmap.fig.add_subplot(111, projection='3d')
 
+
         grid = griddata(points,values,(self.heatmap.X,self.heatmap.Y),method="cubic")
         
 

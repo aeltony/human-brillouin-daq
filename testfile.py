@@ -1,6 +1,8 @@
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt4 import QtGui,QtCore
 import numpy as np
+
+import random
+
 # graphing imports
 import matplotlib
 matplotlib.use('TkAgg')
@@ -11,15 +13,16 @@ from scipy.interpolate import griddata
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 
+
 import sys
 
         
-class App(QWidget):
+class App(QtGui.QWidget):
 
     def __init__(self):
         super(App,self).__init__()
         
-        self.grid = QGridLayout()
+        self.grid = QtGui.QGridLayout()
         self.setLayout(self.grid)
 
         self.heatmap = HeatMapGraph(25)
@@ -27,29 +30,37 @@ class App(QWidget):
         self.heatmap_panel = FigureCanvasQTAgg(self.heatmap.fig)
         self.heatmap.ax = self.heatmap.fig.add_subplot(111, projection='3d')
 
-        self.scanned_BS_values = np.zeros(self.heatmap.X.shape)
-        self.scanned_BS_values.fill(6)
 
-        img = self.heatmap.ax.plot_surface(self.heatmap.X, self.heatmap.Y, self.scanned_BS_values, rstride=1, cstride=1, cmap=cm.rainbow, antialiased=False)
+        #self.scanned_BS_values = np.zeros(self.heatmap.X.shape)
+        #self.scanned_BS_values.fill(0.5)
+
+
+        dict_template = [((x,y),0.5) for x in range(-600,601,100) for y in range(-600,601,100)]
+        self.scanned_BS_values = dict(dict_template)
+
+
+        points = self.scanned_BS_values.keys()
+        values = [self.scanned_BS_values[key] for key in points]
+
+        grid = griddata(points,values,(self.heatmap.X,self.heatmap.Y),method="cubic")
+
+        img = self.heatmap.ax.plot_surface(self.heatmap.X, self.heatmap.Y, grid, rstride=1, cstride=1, cmap=cm.rainbow, antialiased=False)
 
         self.heatmap.set_canvas(self.heatmap_panel)
         Axes3D.mouse_init(self.heatmap.ax)
-
-        self.grid.addWidget(self.heatmap_panel,0,0,4,4)
-
 
         self.heatmap.fig.suptitle("Brillouin Shift Frequency 3D Map",  fontsize=12)
         self.heatmap.ax.set_xlabel('x (pixels)')
         self.heatmap.ax.set_ylabel('y (pixels)')
         self.heatmap.ax.set_zlabel('Average Brillouin shift (GHz)')
-        #self.heatmap.fig.colorbar(img, shrink=0.5, aspect=10)
+        self.heatmap.fig.colorbar(img, shrink=0.5, aspect=10)
 
-        norm = matplotlib.colors.Normalize(vmin=5, vmax=10)
-        
-        cb1 = matplotlib.colorbar.ColorbarBase(self.heatmap.ax, cmap=cm.rainbow,
-                                norm=norm,
-                                orientation='vertical')
 
+        btn = QtGui.QPushButton("add point",self)
+        btn.clicked.connect(self.add_point)
+
+        self.grid.addWidget(self.heatmap_panel,0,0,4,4)
+        self.grid.addWidget(btn,0,4,1,1)
 
         self.heatmap_panel.draw()
 
@@ -57,6 +68,40 @@ class App(QWidget):
         self.move(50,50)
         self.show()
     
+
+    def add_point(self):
+        value = random.random()
+        
+        x = random.randrange(-600,601,25)
+        y = random.randrange(-600,601,25)
+        self.scanned_BS_values[(x,y)] = value
+
+        print x, y, value
+
+        self.heatmap.fig.clf()
+        self.heatmap.ax = self.heatmap.fig.add_subplot(111, projection='3d')
+
+        self.heatmap.fig.suptitle("Brillouin Shift Frequency 3D Map",  fontsize=12)
+        self.heatmap.ax.set_xlabel('x (pixels)')
+        self.heatmap.ax.set_ylabel('y (pixels)')
+        self.heatmap.ax.set_zlabel('Average Brillouin shift (GHz)')
+
+        """
+        mrange = [-600,-500,-400,-300,-200,-100,0,100,200,300,400,500,600]
+        initial_points = np.array(np.meshgrid(mrange,mrange)).T.reshape(-1,2)
+        values = np.array(list(map(lambda point: self.scanned_BS_values[point],initial_points))).T.reshape(-1)
+        """
+        points = self.scanned_BS_values.keys()
+        values = [self.scanned_BS_values[key] for key in points]
+
+        grid = griddata(points,values,(self.heatmap.X,self.heatmap.Y),method="cubic")
+        
+
+        self.heatmap.ax.plot_surface(self.heatmap.X, self.heatmap.Y, grid, rstride=1, cstride=1, cmap=cm.rainbow)
+
+        Axes3D.mouse_init(self.heatmap.ax)
+        self.heatmap_panel.draw()
+
 
 
 class HeatMapGraph:
@@ -74,6 +119,6 @@ class HeatMapGraph:
 
 if __name__ == '__main__':
 
-    app = QApplication(sys.argv)
+    app = QtGui.QApplication(sys.argv)
     gui = App()
     sys.exit(app.exec_())
