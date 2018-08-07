@@ -28,17 +28,14 @@ class Popup(QtGui.QWidget):
         super(Popup,self).__init__()
 
         self.CMOSthread = CMOSthread
-        self.qsnapshot = CMOSthread.qImage
 
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
 
-        pixmap = QtGui.QPixmap.fromImage(self.qImage_snapshot)
-
         instructions = QtGui.QLabel("Draw a diameter in the image below across the pupil, then press Done")
         done_btn = QtGui.QPushButton("Done")
         image_panel = QtGui.QLabel()
-        image_panel.setPixmap(pixmap)
+        image_panel.setPixmap(self.CMOSthread.panel_pixmap)
 
         grid.addWidget(instructions,0,0)
         grid.addWidget(done_btn,1,5)
@@ -199,7 +196,8 @@ class CMOSthread(QtCore.QThread):
                 pupil_data = [plain_image,None,None]
             else:
                 #start_time = time.time()
-                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords)
+                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords,self.scan_loc)
+                
                 #print "HT run time: ",time.time() - start_time
 
             #################################
@@ -222,8 +220,8 @@ class CMOSthread(QtCore.QThread):
 
             #set scan location crosshair
             if self.scan_loc is not None:
-                cv2.line(plain_image,(self.scan_loc[0],min(self.scan_loc[1]+self.crosshair_size,dim[0])),(self.scan_loc[0],max(self.scan_loc[1]-self.crosshair_size,0)),(0,255,0),1)
-                cv2.line(plain_image,(min(self.scan_loc[0]+self.crosshair_size,dim[1]),self.scan_loc[1]),(max(self.scan_loc[0]-self.crosshair_size,0),self.scan_loc[1]),(0,255,0),1)
+                cv2.line(pupil_data[0],(self.scan_loc[0],min(self.scan_loc[1]+self.crosshair_size,dim[0])),(self.scan_loc[0],max(self.scan_loc[1]-self.crosshair_size,0)),(0,255,0),1)
+                cv2.line(pupil_data[0],(min(self.scan_loc[0]+self.crosshair_size,dim[1]),self.scan_loc[1]),(max(self.scan_loc[0]-self.crosshair_size,0),self.scan_loc[1]),(0,255,0),1)
 
             #record subroutine
             if self.app.record_btn.isChecked():
@@ -260,18 +258,8 @@ class CMOSthread(QtCore.QThread):
             ### EXPORT ###
             ##############
 
-            image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)
-            height, width, channel = image.shape
-            bytesPerLine = 3 * width
-            coord_qImage = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
+            self.panel_pixmap = self.app.convert_to_pixmap(pupil_data[0])
+            self.coord_pixmap = self.app.convert_to_pixmap(resized_image)
 
-            image = cv2.cvtColor(pupil_data[0].copy(), cv2.COLOR_BGR2RGB)
-            height, width, channel = image.shape
-            bytesPerLine = 3 * width
-            qImage = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888) 
-
-            self.coord_qImage = coord_qImage
-            self.qImage = qImage
-
-            self.emit(QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),(self.coord_qImage,self.qImage,detected_center,detected_radius))
+            self.emit(QtCore.SIGNAL('update_CMOS_panel(PyQt_PyObject)'),(self.panel_pixmap,self.coord_pixmap,detected_center,detected_radius))
 

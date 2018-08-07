@@ -65,7 +65,7 @@ param2: Accumulator threshold value for the cv2.HOUGH_GRADIENT method. The small
 minRadius: Minimum size of the radius (in pixels).
 maxRadius: Maximum size of the radius (in pixels).
 """
-def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,expected_radius,coordinates):
+def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,expected_radius,coordinates,ROI_center=None):
     
     if frame is None: 
         return
@@ -73,7 +73,17 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
     dim = frame.shape
     frame_bgr = frame.copy()
 
-    frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+    if ROI_center is not None:
+        print "ROI_center: ",ROI_center
+        crop_size = 2*expected_radius
+        min_y, max_y, min_x, max_x = max(0,ROI_center[1]-crop_size), min(dim[0],ROI_center[1]+crop_size), max(0,ROI_center[0]-crop_size), min(dim[1],ROI_center[0]+crop_size)
+        print "dim: ",min_y, max_y, min_x, max_x
+        cropped_frame = frame_bgr[min_y:max_y, min_x:max_x]
+    else:
+        cropped_frame = frame_bgr
+
+
+    frame = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2GRAY)
 
     frame = cv2.medianBlur(frame,medianBlur) #required for Hough transform
 
@@ -98,7 +108,6 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
                 min_objective = objective
                 min_circle_center = (i[0],i[1])
                 min_circle_radius = i[2]
-                print min_circle_radius
 
         if coordinates:
             x,y = min_circle_center
@@ -106,20 +115,24 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
             partitions = min_circle_radius/partition_size + 1
             partition_radius = partitions*partition_size
             for p in range(1,partitions+1):
-                cv2.circle(frame_bgr,min_circle_center,p*partition_size,(0,255,0),1)
+                cv2.circle(cropped_frame,min_circle_center,p*partition_size,(0,255,0),1)
 
-            cv2.line(frame_bgr,(x,min(y+partition_radius,dim[0])),(x,max(y-partition_radius,0)),(0,255,0),1)
-            cv2.line(frame_bgr,(min(x+partition_radius,dim[1]),y),(max(x-partition_radius,0),y),(0,255,0),1)
+            cv2.line(cropped_frame,(x,min(y+partition_radius,dim[0])),(x,max(y-partition_radius,0)),(0,255,0),1)
+            cv2.line(cropped_frame,(min(x+partition_radius,dim[1]),y),(max(x-partition_radius,0),y),(0,255,0),1)
 
     else:
         pass 
         #print "No circles detected!"
 
     #control 
-    #cv2.line(frame_bgr,(0,0),(0,frame_bgr.shape[0]),(0,0,0),5) # vertical line
-    #cv2.line(frame_bgr,(0,0),(frame_bgr.shape[1],0),(255,255,255),5) # horizontal line
+    cv2.line(cropped_frame,(0,0),(0,cropped_frame.shape[0]),(255,255,255),5) # vertical line
+    cv2.line(cropped_frame,(0,0),(cropped_frame.shape[1],0),(255,255,255),5) # horizontal line
 
-    return (frame_bgr.copy(),min_circle_center,min_circle_radius)
+    if ROI_center is not None and min_circle_center is not None:
+        print min_circle_center, ROI_center
+        min_circle_center = (min_circle_center[0]+min_x,min_circle_center[1]+min_y)
+
+    return (frame_bgr,min_circle_center,min_circle_radius)
 
 
 def detect_pupil_video(path,radius_range=None):

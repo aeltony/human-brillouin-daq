@@ -382,30 +382,18 @@ class App(QtGui.QWidget):
     def update_CMOS_panel(self,camera_data):
         #print "updating CMOS panel"
         #updating cmos panel
-        coord_qImage, qImage, detected_center, detected_radius = camera_data
+        panel_pixmap, coord_pixmap, detected_center, detected_radius = camera_data
 
-        coord_pixmap = QtGui.QPixmap.fromImage(coord_qImage)
+        self.cmos_panel.setPixmap(panel_pixmap)
+        self.cmos_panel.show()
+
         self.coord_panel.setPixmap(coord_pixmap)
         self.coord_panel.show()
-
-        pixmap = QtGui.QPixmap.fromImage(qImage)
-        self.cmos_panel.setPixmap(pixmap)
-        self.cmos_panel.show()
 
         #IMPORTANT THAT THESE ARE SET AFTER BOTH PANEL IMAGES ARE SET
         self.detected_center = detected_center
         self.detected_radius = detected_radius
-        """
-        with self.map_lock:
-            start_time = time.time()
-            if self.pupil_circle is not None:
-                self.pupil_circle.remove()
-            if self.detected_radius is not None:
-                self.pupil_circle = Circle((0,0),self.detected_radius,facecolor='None',edgecolor='black',lw=1,zorder=100)
-                self.heatmap.ax.add_patch(self.pupil_circle)
-                self.heatmap_panel.draw()
-            print "circle update time: ",time.time()-start_time
-        """
+
 
     def update_EMCCD_panel(self,qImage):
         #print "updating EMCCD panel"
@@ -433,7 +421,6 @@ class App(QtGui.QWidget):
         else:
             BS_dict = self.scanned_BS_values
 
-        #print "BS_dict: ",BS_dict
 
         points = BS_dict.keys()
         display_points = list(map(lambda point: (point[0],-point[1]),points))

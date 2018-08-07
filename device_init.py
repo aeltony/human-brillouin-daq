@@ -19,7 +19,7 @@ class Andor_Camera(object):
         self.cam.SetTriggerMode(0)
         self.cam.SetImage(1,4,1,self.cam.width,1,self.cam.height)
         self.cam.SetShutter(1,1,0,0)
-        self.cam.SetExposureTime(.3)
+        self.cam.SetExposureTime(.5)
         self.cam.SetTemperature(-80)
         self.cam.SetCoolerMode(1)
 
@@ -46,7 +46,7 @@ class Andor_Camera(object):
         self.cam.SetEMAdvanced(1)
         self.cam.SetEMCCDGain(300)
 
-
+#598, 564
 # class for CMOS camera
 class Mako_Camera(object):
     """docstring for ClassName"""

@@ -148,7 +148,7 @@ class EMCCDthread(QtCore.QThread):
         scan_loc = self.app.CMOSthread.scan_loc
         center = self.app.detected_center
 
-        if scan_loc is not None:
+        if scan_loc is not None and center is not None:
             relative_coord = (scan_loc[0]-center[0],scan_loc[1]-center[1])
             self.update_scanned_location(relative_coord,BS_profile,start_pos,length,num_steps)
 
@@ -281,8 +281,8 @@ class EMCCDthread(QtCore.QThread):
                 curve_data = (popt,pcov,measured_SD,measured_FSR)
                 self.emit(QtCore.SIGNAL('draw_curve(PyQt_PyObject'),curve_data)
 
-                #self.SD.set(measured_SD)
-                #self.FSR.set(measured_FSR)
+                self.app.SD_entry.setText(str(measured_SD))
+                self.app.FSR_entry.setText(str(measured_FSR))
 
         except Exception as e:
             traceback.print_exc()
