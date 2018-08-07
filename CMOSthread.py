@@ -28,7 +28,7 @@ class Popup(QtGui.QWidget):
         super(Popup,self).__init__()
 
         self.CMOSthread = CMOSthread
-        self.qImage_snapshot = CMOSthread.qImage
+        self.qsnapshot = CMOSthread.qImage
 
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
@@ -86,6 +86,8 @@ class CMOSthread(QtCore.QThread):
         self.coord_panel_image = None
         self.update_coord_panel() #initializes coord panel image
 
+
+        self.crosshair_size = 20
         self.pupil_video_frames = []
         self.pupil_data_list = []
         self.medianBlur = None
@@ -187,21 +189,41 @@ class CMOSthread(QtCore.QThread):
                            shape = (self.frame.height,self.frame.width))    
             resized_image = imutils.resize(image_arr, width=1024)
             plain_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2BGR)
+            dim = plain_image.shape
 
-            #set scan location crosshair
-            if self.scan_loc is not None:
-                size = 20
-                dim = plain_image.shape
-                cv2.line(plain_image,(self.scan_loc[0],min(self.scan_loc[1]+size,dim[0])),(self.scan_loc[0],max(self.scan_loc[1]-size,0)),(0,255,0),1)
-                cv2.line(plain_image,(min(self.scan_loc[0]+size,dim[1]),self.scan_loc[1]),(max(self.scan_loc[0]-size,0),self.scan_loc[1]),(0,255,0),1)
+            ###########################
+            ### RUN PUPIL DETECTION ###
+            ###########################
 
-            #run pupil detection
             if self.medianBlur is None or self.dp is None or self.minDist is None or self.param1 is None or self.param2 is None or self.radius_range is None or self.expected_pupil_radius is None:
                 pupil_data = [plain_image,None,None]
             else:
                 #start_time = time.time()
-                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords,self.app.scanned_locations)
+                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords)
                 #print "HT run time: ",time.time() - start_time
+
+            #################################
+            ### POST PROCESSING OF IMAGES ###
+            #################################
+
+            detected_center = pupil_data[1]
+            detected_radius = pupil_data[2]
+
+            if detected_center is not None and detected_radius is not None:
+                #draw detected pupil center and circle
+                cv2.circle(pupil_data[0],detected_center,detected_radius,(255,0,0),2)
+                cv2.circle(pupil_data[0],detected_center,2,(255,0,0),3)
+
+                #mark scanned locations
+                for loc in self.app.scanned_locations.values():
+                    abs_pos = (detected_center[0]+loc[0],detected_center[1]+loc[1])
+                    if abs_pos[0] >= 0 and abs_pos[0] <= dim[1] and abs_pos[1] >= 0 and abs_pos[1] <= dim[0]:
+                        cv2.circle(pupil_data[0],abs_pos,2,(0,255,255),2)
+
+            #set scan location crosshair
+            if self.scan_loc is not None:
+                cv2.line(plain_image,(self.scan_loc[0],min(self.scan_loc[1]+self.crosshair_size,dim[0])),(self.scan_loc[0],max(self.scan_loc[1]-self.crosshair_size,0)),(0,255,0),1)
+                cv2.line(plain_image,(min(self.scan_loc[0]+self.crosshair_size,dim[1]),self.scan_loc[1]),(max(self.scan_loc[0]-self.crosshair_size,0),self.scan_loc[1]),(0,255,0),1)
 
             #record subroutine
             if self.app.record_btn.isChecked():
@@ -209,38 +231,40 @@ class CMOSthread(QtCore.QThread):
                 self.pupil_data_list.append((pupil_data[1],pupil_data[2]))
                 print "added frame to list"
             
-
-            circle_image = self.coord_panel_image.copy()
-            image_dim = circle_image.shape
-            detected_center = pupil_data[1]
-            detected_radius = pupil_data[2]
+            ##########################
+            ### UPDATE COORD PANEL ###
+            ##########################
+            
+            coord_image = self.coord_panel_image.copy()
+            coord_dim = coord_image.shape
 
             #update pupil radius and scan location for coord image panel
             if detected_center is not None and detected_radius is not None:
-                image_center = (image_dim[1]/2,image_dim[0]/2)
+                coord_center = (coord_dim[1]/2,coord_dim[0]/2)
 
                 if self.scan_loc is not None:
-                    size = 20
                     scan_loc = self.scan_loc
                     rel_scan_loc = (scan_loc[0]-detected_center[0],scan_loc[1]-detected_center[1])
-                    panel_loc = (rel_scan_loc[0]+image_center[0],rel_scan_loc[1]+image_center[1])
+                    panel_loc = (rel_scan_loc[0]+coord_center[0],rel_scan_loc[1]+coord_center[1])
 
-                    cv2.line(circle_image,(panel_loc[0],min(panel_loc[1]+size,image_dim[0])),(panel_loc[0],max(panel_loc[1]-size,0)),(0,255,0),1)
-                    cv2.line(circle_image,(min(panel_loc[0]+size,image_dim[1]),panel_loc[1]),(max(panel_loc[0]-size,0),panel_loc[1]),(0,255,0),1)
+                    cv2.line(coord_image,(panel_loc[0],min(panel_loc[1]+self.crosshair_size,coord_dim[0])),(panel_loc[0],max(panel_loc[1]-self.crosshair_size,0)),(0,255,0),1)
+                    cv2.line(coord_image,(min(panel_loc[0]+self.crosshair_size,coord_dim[1]),panel_loc[1]),(max(panel_loc[0]-self.crosshair_size,0),panel_loc[1]),(0,255,0),1)
                 
-                cv2.circle(circle_image,image_center,detected_radius,(255,0,0),2)
+                cv2.circle(coord_image,coord_center,detected_radius,(255,0,0),2)
 
-                resized_image = imutils.resize(circle_image, width=image_dim[0]/2)
+                resized_image = imutils.resize(coord_image, width=coord_dim[0]/2)
             else:
-                resized_image = imutils.resize(self.coord_panel_image, width=image_dim[0]/2)
+                resized_image = imutils.resize(self.coord_panel_image, width=coord_dim[0]/2)
 
-            #process images for export
+            ##############
+            ### EXPORT ###
+            ##############
+
             image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)
             height, width, channel = image.shape
             bytesPerLine = 3 * width
             coord_qImage = QtGui.QImage(image.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
 
-            # convets image to form used by pyqt
             image = cv2.cvtColor(pupil_data[0].copy(), cv2.COLOR_BGR2RGB)
             height, width, channel = image.shape
             bytesPerLine = 3 * width

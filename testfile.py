@@ -118,7 +118,17 @@ class HeatMapGraph:
 
 
 if __name__ == '__main__':
-
+	"""
     app = QtGui.QApplication(sys.argv)
     gui = App()
     sys.exit(app.exec_())
+    """
+
+    img = np.zeros((1000,1000))
+    cv2.circle(img,(500,500),50,(255,0,0),2)
+
+    
+
+
+
+
