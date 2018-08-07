@@ -74,10 +74,8 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
     frame_bgr = frame.copy()
 
     if ROI_center is not None:
-        print "ROI_center: ",ROI_center
         crop_size = 2*expected_radius
         min_y, max_y, min_x, max_x = max(0,ROI_center[1]-crop_size), min(dim[0],ROI_center[1]+crop_size), max(0,ROI_center[0]-crop_size), min(dim[1],ROI_center[0]+crop_size)
-        print "dim: ",min_y, max_y, min_x, max_x
         cropped_frame = frame_bgr[min_y:max_y, min_x:max_x]
     else:
         cropped_frame = frame_bgr
@@ -129,7 +127,6 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
     cv2.line(cropped_frame,(0,0),(cropped_frame.shape[1],0),(255,255,255),5) # horizontal line
 
     if ROI_center is not None and min_circle_center is not None:
-        print min_circle_center, ROI_center
         min_circle_center = (min_circle_center[0]+min_x,min_circle_center[1]+min_y)
 
     return (frame_bgr,min_circle_center,min_circle_radius)

@@ -122,8 +122,11 @@ class App(QtGui.QWidget):
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
 
+        self.slider = QtGui.QSlider(QtCore.Qt.Horizontal,self)
+
         grid.addWidget(self.coord_panel, 0, 2, 4, 4)
         grid.addWidget(self.heatmap_panel, 4, 2, 4, 4)
+        grid.addWidget(self.slider, 8, 2, 1, 4)
         grid.addWidget(self.cmos_panel, 0, 6, 11, 7)
         grid.addWidget(self.emccd_panel, 0, 13, 6, 5)
         grid.addWidget(self.canvas, 6, 13, 3, 5)
@@ -131,6 +134,10 @@ class App(QtGui.QWidget):
         self.coord_panel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
         self.cmos_panel.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
         
+        self.slider.valueChanged.connect(self.change_heatmap_depth)
+        self.slider.setMinimum(0)
+        self.slider.setMaximum(10)
+
         #############################
         ### PUPIL DETECTION PANEL ###
         #############################
@@ -218,7 +225,7 @@ class App(QtGui.QWidget):
         #################################
 
         coord_grid = QtGui.QGridLayout()
-        grid.addLayout(coord_grid,8,2,10,4)
+        grid.addLayout(coord_grid,9,2,10,4)
 
         scanned_loc_table = QtGui.QTableWidget(1,6,self)
         delete_btn = QtGui.QPushButton("Delete Selected",self)
@@ -469,7 +476,8 @@ class App(QtGui.QWidget):
 
         self.heatmap_panel.draw()
         
-
+    def change_heatmap_depth(self,value):
+        print value
 
     def update_graph_panel(self,graph_data):
 
