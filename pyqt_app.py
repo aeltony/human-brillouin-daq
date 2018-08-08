@@ -35,7 +35,6 @@ from scipy.optimize import curve_fit
 from scipy.interpolate import griddata
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
-from matplotlib.patches import Circle
 
 class App(QtGui.QWidget):
 
@@ -54,7 +53,7 @@ class App(QtGui.QWidget):
         self.andor = device_init.Andor_Camera()
         self.motor = device_init.Motor()
         self.graph = EMCCDthread.Graph()
-        self.heatmap = EMCCDthread.HeatMapGraph(50)
+        self.avg_heatmap = EMCCDthread.HeatMapGraph(50,-1)
 
         self.brillouin_shift_list = []
         self.shutter_state = False
@@ -77,6 +76,7 @@ class App(QtGui.QWidget):
         self.scanned_locations = {} #maps unique id to scanned location in coordinate system
         self.current_ID = 10000
 
+        self.heatmaps = {-1:self.avg_heatmap}
 
         self.coord_panel_image = None
 
@@ -95,22 +95,9 @@ class App(QtGui.QWidget):
         self.emccd_panel = QtGui.QLabel()
         self.canvas = FigureCanvasQTAgg(self.graph.fig)
         self.coord_panel = QtGui.QLabel()
-        self.heatmap_panel = FigureCanvasQTAgg(self.heatmap.fig)
-        self.heatmap.ax = self.heatmap.fig.add_subplot(111)
+        self.heatmap_panel = FigureCanvasQTAgg(self.avg_heatmap.fig)
 
-        self.scanned_BS_values = {}
-        self.pupil_circle = None
-
-        plot = self.heatmap.ax.pcolormesh(self.heatmap.X, self.heatmap.Y, np.zeros(self.heatmap.X.shape), cmap=cm.rainbow)
-        cb = self.heatmap.fig.colorbar(plot,fraction=0.046, pad=0.04)
-
-        self.heatmap.set_canvas(self.heatmap_panel)
-
-        self.heatmap.fig.suptitle("Brillouin Shift Frequency Map (GHz)",  fontsize=12)
-        self.heatmap.ax.set_xlabel('x (pixels)')
-        self.heatmap.ax.set_ylabel('y (pixels)')
-        self.heatmap.ax.set_aspect('equal')
-
+        self.avg_heatmap.plot()
         self.heatmap_panel.draw()
 
         self.mainUI()
@@ -136,7 +123,7 @@ class App(QtGui.QWidget):
         
         self.slider.valueChanged.connect(self.change_heatmap_depth)
         self.slider.setMinimum(0)
-        self.slider.setMaximum(10)
+        self.slider.setMaximum(0)
 
         #############################
         ### PUPIL DETECTION PANEL ###
@@ -380,6 +367,7 @@ class App(QtGui.QWidget):
         vel_grid.addWidget(velocity_entry, 1, 0)
         vel_grid.addWidget(velocity_btn, 1, 1)
 
+        self.grid = grid
 
         self.setWindowTitle("Brillouin Scan Interface")
         self.move(50,50)
@@ -412,72 +400,32 @@ class App(QtGui.QWidget):
         
         if BS_data is not None:
             pos,BS_profile = BS_data
-            self.scanned_BS_values[pos] = sum(BS_profile)/len(BS_profile) #average BS value
+            self.avg_heatmap.scanned_BS_values[pos] = sum(list(map(lambda profile: profile[1],BS_profile)))/len(BS_profile) #average BS value
 
-        #heatmap_coord = (pos[0]/self.heatmap.resolution+24,pos[1]/self.heatmap.resolution+24)
-        if len(self.scanned_BS_values) < 4:
-            BS_dict = self.scanned_BS_values.copy()
-            BS_values = BS_dict.values()
-            if len(BS_values) == 0:
-                av = 0
-            else: 
-                av = int(sum(BS_values)/len(BS_values))
+            for depth,BS in BS_profile:
+                if depth not in self.heatmaps:
+                    heatmap = EMCCDthread.HeatMapGraph(50,depth)
+                    heatmap.scanned_BS_values[pos] = BS
+                    heatmap.plot()
+                    self.heatmaps[depth] = heatmap
+                    self.slider.setMaximum(len(self.heatmaps)-1)
+                else:
+                    self.heatmaps[depth].scanned_BS_values[pos] = BS
+                    self.heatmaps[depth].plot()
 
-            initial_points = {(-600,600):av,(-600,-600):av,(600,-600):av,(600,600):av}
-            BS_dict.update(initial_points)
-        else:
-            BS_dict = self.scanned_BS_values
-
-
-        points = BS_dict.keys()
-        display_points = list(map(lambda point: (point[0],-point[1]),points))
-        x_list = list(map(lambda point: point[0],display_points))
-        y_list = list(map(lambda point: point[1],display_points))
-
-        min_x, max_x, min_y, max_y = (min(x_list),max(x_list),min(y_list),max(y_list))
-        data_range = max(max_x-min_x,max_y-min_y)
-        if data_range/50 <= 1:
-            resolution = 1
-        else:
-            resolution = min(data_range/50,50)
-
-        ####################
-        ### UPDATE GRAPH ###
-        ####################
-
-        self.heatmap.fig.clf()
-        self.pupil_circle = None
-
-        self.heatmap.ax = self.heatmap.fig.add_subplot(111)
-        self.heatmap.set_resolution(resolution,min_x,max_x,min_y,max_y)
-
-        heatmap_points = list(map(lambda point: (point[0]/resolution*resolution,point[1]/resolution*resolution),display_points))
-        values = np.array(list(map(lambda point: BS_dict[point],points))).reshape(-1)
-        grid = griddata(heatmap_points,values,(self.heatmap.X,self.heatmap.Y),method="cubic")
-        #print "heatmap points: ",heatmap_points
-        #print "values: ",values
-
-
-        masked_array = np.ma.array(grid, mask=np.isnan(grid))
-
-        colormap = cm.rainbow
-        colormap.set_bad('white',1.)
-        
-        plot = self.heatmap.ax.pcolormesh(self.heatmap.X, self.heatmap.Y, masked_array, cmap=colormap, zorder=2)
-        # assign text describing BS value at measured points
-        map(lambda point: self.heatmap.ax.text(point[0],-point[1],str(BS_dict[point]),color='black',size='x-small'),points)
-
-        self.heatmap.fig.suptitle("Brillouin Shift Frequency Map (GHz)",  fontsize=12)
-        self.heatmap.ax.set_xlabel('x (pixels)')
-        self.heatmap.ax.set_ylabel('y (pixels)')
-        self.heatmap.ax.set_aspect('equal')
-
-        cb = self.heatmap.fig.colorbar(plot,fraction=0.046, pad=0.04)
-
+        self.avg_heatmap.plot()
         self.heatmap_panel.draw()
         
     def change_heatmap_depth(self,value):
-        print value
+        
+        #self.grid.removeWidget(self.heatmap_panel)
+        #self.heatmap_panel.deleteLater()
+
+        depth = sorted(self.heatmaps.keys())[value]
+        self.heatmap_panel = FigureCanvasQTAgg(self.heatmaps[depth].fig)
+        
+        self.grid.addWidget(self.heatmap_panel, 4, 2, 4, 4)
+        self.heatmap_panel.draw()
 
     def update_graph_panel(self,graph_data):
 
@@ -537,7 +485,7 @@ class App(QtGui.QWidget):
             ID = self.scanned_loc_table.item(row,5).text()
             pos = self.scanned_locations[int(ID)]
             del self.scanned_locations[int(ID)]
-            del self.scanned_BS_values[pos]
+            del self.heatmap.scanned_BS_values[pos]
 
         #resets the coord panel to show updated removal of points
         self.CMOSthread.update_coord_panel()
@@ -555,7 +503,7 @@ class App(QtGui.QWidget):
         self.scanned_loc_table.clearContents()
         self.scanned_loc_table.setRowCount(1)
         self.scanned_locations = {}
-        self.scanned_BS_values = {}
+        self.heatmap.scanned_BS_values = {}
 
         self.CMOSthread.update_coord_panel()
         resized_image = imutils.resize(self.CMOSthread.coord_panel_image, width=self.CMOSthread.coord_panel_image.shape[0]/2)

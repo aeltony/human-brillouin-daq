@@ -30,7 +30,9 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from scipy.interpolate import griddata
 from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
 
 
 class EMCCDthread(QtCore.QThread):
@@ -101,13 +103,12 @@ class EMCCDthread(QtCore.QThread):
 
         return image, BS
 
-
     def update_scanned_location(self, relative_coord, BS_profile, start_pos, length, num_steps):
         if self.app.CMOSthread.scan_loc is not None:
             #updating stored scanned locations
             loc_ID = self.app.get_current_ID()
             self.app.scanned_locations[loc_ID] = relative_coord
-            average_shift = sum(BS_profile)/len(BS_profile)
+            average_shift = sum(list(map(lambda profile: profile[1],BS_profile)))/len(BS_profile)
 
             display_coord = (relative_coord[0],-relative_coord[1])
             table = self.app.scanned_loc_table
@@ -126,28 +127,28 @@ class EMCCDthread(QtCore.QThread):
         ############
         ### SCAN ###
         ############
-        
+
         self.app.move_motor_abs(start_pos)
         step_size = length // num_steps
         BS_profile = []
 
         image,BS = self.acquire_frame()
-        BS_profile.append(BS)
+        BS_profile.append((start_pos,BS))
+
         self.export_list.append(image) #initial frame
 
-        for i in range(num_steps):
+        for i in range(1,num_steps+1):
 
             self.app.move_motor_rel(step_size)           
             
             image,BS = self.acquire_frame()
-            BS_profile.append(BS)
+            BS_profile.append((start_pos+step_size*i,BS))
+
             self.export_list.append(image)
 
 
-        # scan updates
         scan_loc = self.app.CMOSthread.scan_loc
         center = self.app.detected_center
-
         if scan_loc is not None and center is not None:
             relative_coord = (scan_loc[0]-center[0],scan_loc[1]-center[1])
             self.update_scanned_location(relative_coord,BS_profile,start_pos,length,num_steps)
@@ -299,10 +300,71 @@ class Graph(object):
 
 
 class HeatMapGraph:
-    def __init__(self,resolution):
+    def __init__(self,resolution,depth):
         self.fig = Figure(figsize = (5,5), dpi = 100)
         self.ax = None
+        self.depth = depth
+        self.scanned_BS_values = {}
+
         self.set_resolution(resolution,-600,600,-600,600)
+
+    def plot(self):
+        
+        self.fig.clf()
+
+        if len(self.scanned_BS_values) < 4:
+            BS_dict = self.scanned_BS_values.copy()
+            BS_values = BS_dict.values()
+            if len(BS_values) == 0:
+                av = 0
+            else: 
+                av = int(sum(BS_values)/len(BS_values))
+
+            initial_points = {(-600,600):av,(-600,-600):av,(600,-600):av,(600,600):av}
+            BS_dict.update(initial_points)
+        else:
+            BS_dict = self.scanned_BS_values
+
+        points = BS_dict.keys()
+        display_points = list(map(lambda point: (point[0],-point[1]),points))
+        x_list = list(map(lambda point: point[0],display_points))
+        y_list = list(map(lambda point: point[1],display_points))
+
+        # AUTOADJUST RESOLUTION
+        min_x, max_x, min_y, max_y = (min(x_list),max(x_list),min(y_list),max(y_list))
+        data_range = max(max_x-min_x,max_y-min_y)
+        if data_range/50 <= 1:
+            resolution = 1
+        else:
+            resolution = min(data_range/50,50)
+
+        # CREATE NEW SUBPLOT
+        self.ax = self.fig.add_subplot(111)
+
+        self.set_resolution(resolution,min_x,max_x,min_y,max_y)
+
+        heatmap_points = list(map(lambda point: (point[0]/resolution*resolution,point[1]/resolution*resolution),display_points))
+        values = np.array(list(map(lambda point: BS_dict[point],points))).reshape(-1)
+        grid = griddata(heatmap_points,values,(self.X,self.Y),method="cubic")
+
+        masked_array = np.ma.array(grid, mask=np.isnan(grid))
+
+        colormap = cm.rainbow
+        colormap.set_bad('white',1.)
+
+        plot = self.ax.pcolormesh(self.X, self.Y, masked_array, cmap=cm.rainbow)
+        map(lambda point: self.ax.text(point[0],-point[1],str(BS_dict[point]),color='black',size='x-small'),points)
+
+        cb = self.fig.colorbar(plot,fraction=0.046, pad=0.04)
+
+        if self.depth == -1:
+            self.fig.suptitle("Average Brillouin Shift Frequency Map (GHz)",  fontsize=12)
+        else:
+            self.fig.suptitle("Brillouin Shift Frequency Map at %f(GHz)" % self.depth,  fontsize=12)
+        self.ax.set_xlabel('x (pixels)')
+        self.ax.set_ylabel('y (pixels)')
+        self.ax.set_aspect('equal')
+
 
     def set_resolution(self,resolution,min_x,max_x,min_y,max_y):
         self.res = resolution
@@ -320,8 +382,6 @@ class HeatMapGraph:
         Y = np.arange(min_y/self.res*self.res,math.ceil(max_y/self.res)*self.res+1,self.res)
         self.X, self.Y = np.meshgrid(X,Y)
 
-    def set_canvas(self,canvas):
-        self.fig.set_canvas(canvas)
 
 
 def lorentzian(x, gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, constant_3):
