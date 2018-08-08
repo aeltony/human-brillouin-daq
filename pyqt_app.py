@@ -110,12 +110,14 @@ class App(QtGui.QWidget):
         self.setLayout(grid)
 
         self.slider = QtGui.QSlider(QtCore.Qt.Horizontal,self)
+        self.scan_images = QtGui.QListWidget(self)
 
         grid.addWidget(self.coord_panel, 0, 2, 4, 4)
         grid.addWidget(self.heatmap_panel, 4, 2, 4, 4)
         grid.addWidget(self.slider, 8, 2, 1, 4)
         grid.addWidget(self.cmos_panel, 0, 6, 11, 7)
-        grid.addWidget(self.emccd_panel, 0, 13, 6, 5)
+        grid.addWidget(self.emccd_panel, 0, 13, 3, 5)
+        grid.addWidget(self.scan_images, 3, 13, 3, 5)
         grid.addWidget(self.canvas, 6, 13, 3, 5)
 
         self.coord_panel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
@@ -124,6 +126,7 @@ class App(QtGui.QWidget):
         self.slider.valueChanged.connect(self.change_heatmap_depth)
         self.slider.setMinimum(0)
         self.slider.setMaximum(0)
+        self.scan_images.setIconSize(QtCore.QSize(1024,1024))
 
         #############################
         ### PUPIL DETECTION PANEL ###
