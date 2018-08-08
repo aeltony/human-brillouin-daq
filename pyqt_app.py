@@ -423,7 +423,7 @@ class App(QtGui.QWidget):
 
         depth = sorted(self.heatmaps.keys())[value]
         self.heatmap_panel = FigureCanvasQTAgg(self.heatmaps[depth].fig)
-        
+
         self.grid.addWidget(self.heatmap_panel, 4, 2, 4, 4)
         self.heatmap_panel.draw()
 
@@ -485,7 +485,11 @@ class App(QtGui.QWidget):
             ID = self.scanned_loc_table.item(row,5).text()
             pos = self.scanned_locations[int(ID)]
             del self.scanned_locations[int(ID)]
-            del self.heatmap.scanned_BS_values[pos]
+            for depth in self.heatmaps:
+                heatmap = self.heatmaps[depth]
+                if pos in heatmap.scanned_BS_values:
+                    del heatmap.scanned_BS_values[pos]
+                    heatmap.plot()
 
         #resets the coord panel to show updated removal of points
         self.CMOSthread.update_coord_panel()
@@ -493,7 +497,7 @@ class App(QtGui.QWidget):
         coord_pixmap = self.convert_to_pixmap(resized_image)
         self.coord_panel.setPixmap(coord_pixmap)
         self.coord_panel.show()
-        self.update_heatmap_panel()
+        self.heatmap_panel.draw()
 
         for row in sorted_row_set:
             self.scanned_loc_table.removeRow(row)
@@ -503,14 +507,16 @@ class App(QtGui.QWidget):
         self.scanned_loc_table.clearContents()
         self.scanned_loc_table.setRowCount(1)
         self.scanned_locations = {}
-        self.heatmap.scanned_BS_values = {}
+        self.heatmaps = {-1:self.avg_heatmap}
+        self.avg_heatmap.scanned_BS_values = {}
+        self.avg_heatmap.plot()
 
         self.CMOSthread.update_coord_panel()
         resized_image = imutils.resize(self.CMOSthread.coord_panel_image, width=self.CMOSthread.coord_panel_image.shape[0]/2)
         coord_pixmap = self.convert_to_pixmap(resized_image)
         self.coord_panel.setPixmap(coord_pixmap)
         self.coord_panel.show()
-        self.update_heatmap_panel()
+        self.heatmap_panel.draw()
 
 
     #similar to shutters.py, called on by reference button 
