@@ -84,7 +84,7 @@ class EMCCDthread(QtCore.QThread):
             cropped = np.zeros((14,80))
 
         image = imutils.resize(cropped, width=1024)
-        image = cv2.cvtColor(image,cv2.COLOR_GRAY2BGR)
+        #image = cv2.cvtColor(image,cv2.COLOR_GRAY2BGR)
 
         #obtain brillouin value
         FSR = float(self.app.FSR_entry.displayText())
@@ -137,13 +137,14 @@ class EMCCDthread(QtCore.QThread):
 
         self.app.scan_images.clear()
 
+        """
         item = QtGui.QListWidgetItem()
         pixmap = self.app.convert_to_pixmap(image)
         icon = QtGui.QIcon()
         icon.addPixmap(pixmap)
         item.setIcon(icon)
         self.app.scan_images.addItem(item)
-
+        """
         image = Image.fromarray(image)
         self.export_list.append(image) #initial frame
 
@@ -155,14 +156,14 @@ class EMCCDthread(QtCore.QThread):
             image,BS = self.acquire_frame()
             BS_profile.append((start_pos+step_size*i,BS))
 
-
+            """
             item = QtGui.QListWidgetItem()
             pixmap = self.app.convert_to_pixmap(image)
             icon = QtGui.QIcon()
             icon.addPixmap(pixmap)
             item.setIcon(icon)
             self.app.scan_images.addItem(item)
-
+            """
             image = Image.fromarray(image)
             self.export_list.append(image)
 
