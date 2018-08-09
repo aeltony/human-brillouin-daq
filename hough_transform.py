@@ -123,8 +123,8 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
         #print "No circles detected!"
 
     #control 
-    cv2.line(cropped_frame,(0,0),(0,cropped_frame.shape[0]),(255,255,255),5) # vertical line
-    cv2.line(cropped_frame,(0,0),(cropped_frame.shape[1],0),(255,255,255),5) # horizontal line
+    #cv2.line(cropped_frame,(0,0),(0,cropped_frame.shape[0]),(255,255,255),5) # vertical line
+    #cv2.line(cropped_frame,(0,0),(cropped_frame.shape[1],0),(255,255,255),5) # horizontal line
 
     if ROI_center is not None and min_circle_center is not None:
         min_circle_center = (min_circle_center[0]+min_x,min_circle_center[1]+min_y)
