@@ -53,7 +53,7 @@ class App(QtGui.QWidget):
         self.andor = device_init.Andor_Camera()
         self.motor = device_init.Motor()
         self.graph = EMCCDthread.Graph()
-        self.avg_heatmap = EMCCDthread.HeatMapGraph(50,-1)
+        self.avg_heatmap = EMCCDthread.HeatMapGraph(25,-1)
 
         self.brillouin_shift_list = []
         self.shutter_state = False
@@ -109,23 +109,15 @@ class App(QtGui.QWidget):
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
 
-        self.slider = QtGui.QSlider(QtCore.Qt.Horizontal,self)
         self.scan_images = QtGui.QListWidget(self)
 
-        grid.addWidget(self.coord_panel, 0, 2, 4, 4)
-        grid.addWidget(self.heatmap_panel, 4, 2, 4, 4)
-        grid.addWidget(self.slider, 8, 2, 1, 4)
         grid.addWidget(self.cmos_panel, 0, 6, 11, 7)
         grid.addWidget(self.emccd_panel, 0, 13, 3, 5)
-        grid.addWidget(self.scan_images, 3, 13, 3, 5)
-        grid.addWidget(self.canvas, 6, 13, 3, 5)
+        grid.addWidget(self.scan_images, 3, 13, 6, 5)
+        grid.addWidget(self.canvas, 9, 13, 7, 5)
 
-        self.coord_panel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
         self.cmos_panel.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
-        
-        self.slider.valueChanged.connect(self.change_heatmap_depth)
-        self.slider.setMinimum(0)
-        self.slider.setMaximum(0)
+
         self.scan_images.setIconSize(QtCore.QSize(1024,1024))
 
         #############################
@@ -178,7 +170,7 @@ class App(QtGui.QWidget):
         det_grid.addWidget(set_coordinates_btn, 12, 0, 1, 2)
         det_grid.addWidget(set_scan_loc_btn, 13, 0, 1, 2)
 
-        detection_panel_label.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+        detection_panel_label.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignBottom)
         blur_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         dp_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         minDist_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
@@ -209,15 +201,17 @@ class App(QtGui.QWidget):
         apply_btn.clicked.connect(self.CMOSthread.apply_parameters)
         set_coordinates_btn.clicked.connect(self.CMOSthread.set_coordinates)
 
+        self.det_grid = det_grid
 
         #################################
         ### COORDINATE TRACKING PANEL ###
         #################################
 
         coord_grid = QtGui.QGridLayout()
-        grid.addLayout(coord_grid,9,2,10,4)
+        grid.addLayout(coord_grid,0,2,18,4)
 
-        scanned_loc_table = QtGui.QTableWidget(1,6,self)
+        self.slider = QtGui.QSlider(QtCore.Qt.Horizontal,self)
+        self.scanned_loc_table = QtGui.QTableWidget(1,6,self)
         delete_btn = QtGui.QPushButton("Delete Selected",self)
         clear_btn = QtGui.QPushButton("Clear",self)
 
@@ -225,19 +219,27 @@ class App(QtGui.QWidget):
         horizontal_headers = QtCore.QStringList()
         for header in headers:
             horizontal_headers.append(header)
-        scanned_loc_table.setHorizontalHeaderLabels(horizontal_headers)
-        scanned_loc_table.resizeColumnsToContents()
-        scanned_loc_table.horizontalHeader().setStretchLastSection(True)
+        self.scanned_loc_table.setHorizontalHeaderLabels(horizontal_headers)
+        self.scanned_loc_table.resizeColumnsToContents()
+        self.scanned_loc_table.horizontalHeader().setStretchLastSection(True)
 
-        coord_grid.addWidget(scanned_loc_table, 0, 0, 5, 2)
-        coord_grid.addWidget(delete_btn, 5, 0, 1, 1)
-        coord_grid.addWidget(clear_btn, 5, 1, 1, 1)
+        self.slider.valueChanged.connect(self.change_heatmap_depth)
+        self.slider.setMinimum(0)
+        self.slider.setMaximum(0)
 
-        self.scanned_loc_table = scanned_loc_table
+        coord_grid.addWidget(self.coord_panel, 0, 0, 4, 4)
+        coord_grid.addWidget(self.heatmap_panel, 4, 0, 3, 4)
+        coord_grid.addWidget(self.slider, 7, 0, 1, 4)
+        coord_grid.addWidget(self.scanned_loc_table, 8, 0, 9, 4)
+        coord_grid.addWidget(delete_btn, 17, 0, 1, 2)
+        coord_grid.addWidget(clear_btn, 17, 2, 1, 2)
 
+        self.coord_panel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
+        
         delete_btn.clicked.connect(self.delete_entries)
         clear_btn.clicked.connect(self.clear_table)
         
+        self.coord_grid = coord_grid
 
         ##########################
         ### PUPIL CAMERA PANEL ###
@@ -280,7 +282,7 @@ class App(QtGui.QWidget):
         FSR_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         SD_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         FSR_entry.setText("16.2566")
-        SD_entry.setText("0.14288")
+        SD_entry.setText("0.16")
 
         self.reference_btn = reference_btn
         self.FSR_entry = FSR_entry
@@ -427,7 +429,7 @@ class App(QtGui.QWidget):
         depth = sorted(self.heatmaps.keys())[value]
         self.heatmap_panel = FigureCanvasQTAgg(self.heatmaps[depth].fig)
 
-        self.grid.addWidget(self.heatmap_panel, 4, 2, 4, 4)
+        self.coord_grid.addWidget(self.heatmap_panel, 4, 0, 3, 4)
         self.heatmap_panel.draw()
 
     def update_graph_panel(self,graph_data):
@@ -449,10 +451,10 @@ class App(QtGui.QWidget):
     def draw_curve(self,curve_data):
         if len(curve_data) == 2:
             popt, pcov = curve_data
-            self.subplot.plot(self.graph.x_axis, lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
+            self.subplot.plot(self.graph.x_axis, EMCCDthread.lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
         elif len(curve_data) == 4:
             popt, pcov, measured_SD, measured_FSR = curve_data
-            self.subplot.plot(self.graph.x_axis, lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
+            self.subplot.plot(self.graph.x_axis, EMCCDthread.lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
             self.SD_entry.setText(measured_SD)
             self.FSR_entry.setText(measured_FSR)
 
@@ -530,7 +532,6 @@ class App(QtGui.QWidget):
         usb312 = dll.piConnectShutter(byref(c2), 312)
         usb314 = dll.piConnectShutter(byref(c4), 314)
 
-        
         state = self.reference_btn.isChecked()
             
         if state and not close:
@@ -547,19 +548,19 @@ class App(QtGui.QWidget):
     def move_motor_home(self):
         self.motor.device.home()
         loc = self.motor.device.send(60,0)
-        self.location_entry.setText(str(loc.data*3.072))
+        self.location_entry.setText(str(loc.data))
 
     # moves zaber motor, called on by forwards and backwards buttons
     def move_motor_rel(self,distance):
-        self.motor.device.move_rel(distance/3.072)
+        self.motor.device.move_rel(distance)
         loc = self.motor.device.send(60, 0)
-        self.location_entry.setText(str(loc.data*3.072))
+        self.location_entry.setText(str(loc.data))
 
      # moves zaber motor to a set location, called on above
     def move_motor_abs(self,pos):
-        self.motor.device.move_abs(pos/3.072)
+        self.motor.device.move_abs(pos)
         loc = self.motor.device.send(60, 0)
-        self.location_entry.setText(str(loc.data*3.072))
+        self.location_entry.setText(str(loc.data))
 
     def set_velocity(self, velocity):
         self.motor.device.send(42,velocity)
@@ -586,12 +587,6 @@ class App(QtGui.QWidget):
 
         event.accept() #closes the application
         
-
-        
-
-
-
-
 
 
 if __name__ == "__main__":

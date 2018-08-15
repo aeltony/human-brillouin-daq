@@ -97,7 +97,7 @@ class CMOSthread(QtCore.QThread):
         self.popup = None
 
         self.coords = False
-        self.scan_loc = None
+        self.scan_loc = (598, 564)
 
     #only updates plotted scanned points in coord panel image
     def update_coord_panel(self):
@@ -195,10 +195,8 @@ class CMOSthread(QtCore.QThread):
             if self.medianBlur is None or self.dp is None or self.minDist is None or self.param1 is None or self.param2 is None or self.radius_range is None or self.expected_pupil_radius is None:
                 pupil_data = [plain_image,None,None]
             else:
-                #start_time = time.time()
                 pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords,self.scan_loc)
-                
-                #print "HT run time: ",time.time() - start_time
+
 
             #################################
             ### POST PROCESSING OF IMAGES ###

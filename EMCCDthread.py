@@ -81,10 +81,10 @@ class EMCCDthread(QtCore.QThread):
 
         if cropped.size == 0:
             print "CROPPED IS EMPTY"
-            cropped = np.zeros((14,80))
+            cropped = np.zeros((14,80), dtype = np.uint8)
 
         image = imutils.resize(cropped, width=1024)
-        #image = cv2.cvtColor(image,cv2.COLOR_GRAY2BGR)
+        image = cv2.cvtColor(image,cv2.COLOR_GRAY2BGR)
 
         #obtain brillouin value
         FSR = float(self.app.FSR_entry.displayText())
@@ -137,14 +137,14 @@ class EMCCDthread(QtCore.QThread):
 
         self.app.scan_images.clear()
 
-        """
+        
         item = QtGui.QListWidgetItem()
         pixmap = self.app.convert_to_pixmap(image)
         icon = QtGui.QIcon()
         icon.addPixmap(pixmap)
         item.setIcon(icon)
         self.app.scan_images.addItem(item)
-        """
+    
         image = Image.fromarray(image)
         self.export_list.append(image) #initial frame
 
@@ -156,14 +156,14 @@ class EMCCDthread(QtCore.QThread):
             image,BS = self.acquire_frame()
             BS_profile.append((start_pos+step_size*i,BS))
 
-            """
+            
             item = QtGui.QListWidgetItem()
             pixmap = self.app.convert_to_pixmap(image)
             icon = QtGui.QIcon()
             icon.addPixmap(pixmap)
             item.setIcon(icon)
             self.app.scan_images.addItem(item)
-            """
+            
             image = Image.fromarray(image)
             self.export_list.append(image)
 
@@ -277,10 +277,10 @@ class EMCCDthread(QtCore.QThread):
 
                 
                 if gamma_1 is not None and gamma_2 is not None:
-                    #popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
-                    pass
-                    #curve_data = (popt,pcov)
-                    #self.emit(QtCore.SIGNAL('draw_curve(PyQt_PyObject'),curve_data)
+                    popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
+                    
+                    curve_data = (popt,pcov)
+                    self.emit(QtCore.SIGNAL('draw_curve(PyQt_PyObject'),curve_data)
             else:
                 constant_1 = np.amax(copied_analyzed_row[:20])
                 constant_2 = np.amax(copied_analyzed_row[20:40])
@@ -325,57 +325,55 @@ class HeatMapGraph:
     def __init__(self,resolution,depth):
         self.fig = Figure(figsize = (5,5), dpi = 100)
         self.ax = None
+        self.res = None
         self.depth = depth
         self.scanned_BS_values = {}
 
         self.set_resolution(resolution,-600,600,-600,600)
 
     def plot(self):
+
+        points = self.scanned_BS_values.keys()
+        if len(points) < 4:
+            self.set_resolution(25,-600,600,-600,600)
+            null_array = np.full(self.X.shape,-1)
+            for point in points: 
+                index_coord = ((-point[1])/self.res+24,point[0]/self.res+24)
+                null_array[index_coord] = self.scanned_BS_values[point]
+
+            masked_array = np.ma.array(null_array, mask=np.less(null_array,np.zeros(null_array.shape)))
+        else:
+            display_points = list(map(lambda point: (point[0],-point[1]),points))
+            x_list = list(map(lambda point: point[0],display_points))
+            y_list = list(map(lambda point: point[1],display_points))
+
+            # AUTO-ADJUST RESOLUTION
+            min_x, max_x, min_y, max_y = (min(x_list),max(x_list),min(y_list),max(y_list))
+            data_range = max(max_x-min_x,max_y-min_y)
+            if data_range/50 <= 1:
+                resolution = 1
+            else:
+                resolution = min(data_range/50,50)
+
+            self.set_resolution(resolution,min_x,max_x,min_y,max_y)
+
+            heatmap_points = list(map(lambda point: (point[0]/self.res*self.res,point[1]/self.res*self.res),display_points))
+            values = np.array(list(map(lambda point: self.scanned_BS_values[point],points))).reshape(-1)
+            grid = griddata(heatmap_points,values,(self.X,self.Y),method="cubic")
+
+            masked_array = np.ma.array(grid, mask=np.isnan(grid))
+       
+
+        # CREATE NEW SUBPLOT #
         
         self.fig.clf()
 
-        if len(self.scanned_BS_values) < 4:
-            BS_dict = self.scanned_BS_values.copy()
-            BS_values = BS_dict.values()
-            if len(BS_values) == 0:
-                av = 0
-            else: 
-                av = int(sum(BS_values)/len(BS_values))
-
-            initial_points = {(-600,600):av,(-600,-600):av,(600,-600):av,(600,600):av}
-            BS_dict.update(initial_points)
-        else:
-            BS_dict = self.scanned_BS_values
-
-        points = BS_dict.keys()
-        display_points = list(map(lambda point: (point[0],-point[1]),points))
-        x_list = list(map(lambda point: point[0],display_points))
-        y_list = list(map(lambda point: point[1],display_points))
-
-        # AUTOADJUST RESOLUTION
-        min_x, max_x, min_y, max_y = (min(x_list),max(x_list),min(y_list),max(y_list))
-        data_range = max(max_x-min_x,max_y-min_y)
-        if data_range/50 <= 1:
-            resolution = 1
-        else:
-            resolution = min(data_range/50,50)
-
-        # CREATE NEW SUBPLOT
         self.ax = self.fig.add_subplot(111)
-
-        self.set_resolution(resolution,min_x,max_x,min_y,max_y)
-
-        heatmap_points = list(map(lambda point: (point[0]/resolution*resolution,point[1]/resolution*resolution),display_points))
-        values = np.array(list(map(lambda point: BS_dict[point],points))).reshape(-1)
-        grid = griddata(heatmap_points,values,(self.X,self.Y),method="cubic")
-
-        masked_array = np.ma.array(grid, mask=np.isnan(grid))
-
         colormap = cm.rainbow
         colormap.set_bad('white',1.)
 
         plot = self.ax.pcolormesh(self.X, self.Y, masked_array, cmap=cm.rainbow)
-        map(lambda point: self.ax.text(point[0],-point[1],str(BS_dict[point]),color='black',size='x-small'),points)
+        map(lambda point: self.ax.text(point[0],-point[1],str(self.scanned_BS_values[point]),color='black',size='x-small'),points)
 
         cb = self.fig.colorbar(plot,fraction=0.046, pad=0.04)
 

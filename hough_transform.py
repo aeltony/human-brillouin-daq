@@ -74,7 +74,7 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
     frame_bgr = frame.copy()
 
     if ROI_center is not None:
-        crop_size = 2*expected_radius
+        crop_size = 2*expected_radius+100
         min_y, max_y, min_x, max_x = max(0,ROI_center[1]-crop_size), min(dim[0],ROI_center[1]+crop_size), max(0,ROI_center[0]-crop_size), min(dim[1],ROI_center[0]+crop_size)
         cropped_frame = frame_bgr[min_y:max_y, min_x:max_x]
     else:
