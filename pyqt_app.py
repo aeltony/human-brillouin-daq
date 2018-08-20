@@ -1,4 +1,3 @@
-
 import threading
 import datetime
 import imutils
@@ -6,10 +5,10 @@ import cv2
 import numpy as np
 import time
 import math
+import sys
 import os
-import sys 
 import traceback
-
+print sys.path
 from PyQt4 import QtGui,QtCore
 from PIL import Image
 from PIL import ImageTk
@@ -20,11 +19,17 @@ import CMOSthread
 import EMCCDthread
 
 # device imports
+
+pymba_path = "C:\\Python27\\lib\\site-packages\\pymba-0.1-py2.7.egg"
+zaber_path = "C:\\Python27\\lib\\site-packages\\zaber"
+if pymba_path not in sys.path: sys.path.append(pymba_path)
+if zaber_path not in sys.path: sys.path.append(zaber_path)
+
 import device_init
 from pymba import *
 from my_andor.andor_wrap import *
 from ctypes import *
-import zaber.serial as zs
+import serial as zs
 
 # graphing imports
 import matplotlib
@@ -37,7 +42,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 
 class App(QtGui.QWidget):
-
+ 
     def __init__(self):
         super(App,self).__init__()
 
@@ -50,7 +55,7 @@ class App(QtGui.QWidget):
 
         # initialize and access cameras, motors and graphs
         self.mako = device_init.Mako_Camera()
-        self.andor = device_init.Andor_Camera()
+        #self.andor = device_init.Andor_Camera()
         self.motor = device_init.Motor()
         self.graph = EMCCDthread.Graph()
         self.avg_heatmap = EMCCDthread.HeatMapGraph(25,-1)

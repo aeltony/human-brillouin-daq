@@ -1,9 +1,14 @@
-
+import sys
 import time
+
+pymba_path = "C:\\Python27\\lib\\site-packages\\pymba-0.1-py2.7.egg"
+zaber_path = "C:\\Python27\\lib\\site-packages\\zaber"
+if pymba_path not in sys.path: sys.path.append(pymba_path)
+if zaber_path not in sys.path: sys.path.append(zaber_path)
 
 from pymba import *
 from my_andor.andor_wrap import *
-import zaber.serial as zs
+import serial as zs
 
 
 #EMCCD class, where settings can be set
