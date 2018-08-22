@@ -59,15 +59,28 @@ class App(QtGui.QWidget):
         btn = QtGui.QPushButton("add point",self)
         btn.clicked.connect(self.add_point)
 
+        screenshot_btn = QtGui.QPushButton("take screenshot",self)
+        screenshot_btn.clicked.connect(self.take_screenshot)
+
         self.grid.addWidget(self.heatmap_panel,0,0,4,4)
         self.grid.addWidget(btn,0,4,1,1)
+        self.grid.addWidget(screenshot_btn,1,4,1,1)
 
         self.heatmap_panel.draw()
+
+        filename = QtGui.QFileDialog.getSaveFileName(self, 'Open File', '/')
+        print filename
+
 
         self.setWindowTitle("Brillouin Scan Interface")
         self.move(50,50)
         self.show()
     
+    def take_screenshot(self):
+        p = QtGui.QPixmap.grabWindow(self.winId())
+        p.save("pupil_videos/screenshot.jpg", 'jpg')
+        print "shot taken"
+
 
     def add_point(self):
         value = random.random()
@@ -118,14 +131,11 @@ class HeatMapGraph:
 
 
 if __name__ == '__main__':
-	"""
+	
     app = QtGui.QApplication(sys.argv)
     gui = App()
     sys.exit(app.exec_())
-    """
-
-    img = np.zeros((1000,1000))
-    cv2.circle(img,(500,500),50,(255,0,0),2)
+    
 
     
 
