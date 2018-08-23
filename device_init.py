@@ -1,14 +1,9 @@
 import sys
 import time
 
-pymba_path = "C:\\Python27\\lib\\site-packages\\pymba-0.1-py2.7.egg"
-zaber_path = "C:\\Python27\\lib\\site-packages\\zaber"
-if pymba_path not in sys.path: sys.path.append(pymba_path)
-if zaber_path not in sys.path: sys.path.append(zaber_path)
-
 from pymba import *
 from my_andor.andor_wrap import *
-import serial as zs
+import zaber.serial as zs
 
 
 #EMCCD class, where settings can be set
@@ -80,7 +75,10 @@ class Motor(object):
         self.port = zs.BinarySerial("COM11", timeout = 20, inter_char_timeout = 0.05)
         self.device = zs.BinaryDevice(self.port, 1)
         self.device.home()
-        #self.device.send(37,128)
+        self.microstep_size = 0.047625
+
+        microstep_cmd = zs.BinaryCommand(1, 37, 64)
+        self.device.send(microstep_cmd)
 
         """
         reply = self.port.read()

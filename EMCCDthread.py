@@ -17,16 +17,12 @@ import hough_transform as ht
 import skvideo.io as skv
 
 # device imports
-pymba_path = "C:\\Python27\\lib\\site-packages\\pymba-0.1-py2.7.egg"
-zaber_path = "C:\\Python27\\lib\\site-packages\\zaber"
-if pymba_path not in sys.path: sys.path.append(pymba_path)
-if zaber_path not in sys.path: sys.path.append(zaber_path)
 
 import device_init
 from pymba import *
 from my_andor.andor_wrap import *
 from ctypes import *
-import serial as zs
+import zaber.serial as zs
 
 # graphing imports
 import matplotlib
@@ -78,12 +74,10 @@ class EMCCDthread(QtCore.QThread):
         scaled_8bit = np.array(scaled_image, dtype = np.uint8)
 
         loc = np.argmax(scaled_8bit)/512
-        left_right = scaled_8bit[loc].argsort()[-10:][::-1]
-        left_right.sort()
         mid = int((left_right[0]+left_right[-1])/2)
 
-        cropped = scaled_8bit[loc-7:loc+7, mid-40:mid+40]
-
+        cropped = scaled_8bit[loc:loc+1, mid-40:mid+40] # only returns the middle strip showing Brillouin peaks
+        print cropped.shape
         if cropped.size == 0:
             print "CROPPED IS EMPTY"
             cropped = np.zeros((14,80), dtype = np.uint8)
@@ -280,12 +274,15 @@ class EMCCDthread(QtCore.QThread):
                 self.brillouin_shift_list.append(BS)
                 length_bs +=1
 
-                
+                """
                 if gamma_1 is not None and gamma_2 is not None:
+                    print "gamma1 and gamma2 is not None"
                     popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
-                    
+
                     curve_data = (popt,pcov)
+                    print "params: ",curve_data
                     self.emit(QtCore.SIGNAL('draw_curve(PyQt_PyObject'),curve_data)
+                """
             else:
                 constant_1 = np.amax(copied_analyzed_row[:20])
                 constant_2 = np.amax(copied_analyzed_row[20:40])

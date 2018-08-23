@@ -20,16 +20,11 @@ import EMCCDthread
 
 # device imports
 
-pymba_path = "C:\\Python27\\lib\\site-packages\\pymba-0.1-py2.7.egg"
-zaber_path = "C:\\Python27\\lib\\site-packages\\zaber"
-if pymba_path not in sys.path: sys.path.append(pymba_path)
-if zaber_path not in sys.path: sys.path.append(zaber_path)
-
 import device_init
 from pymba import *
 from my_andor.andor_wrap import *
 from ctypes import *
-import serial as zs
+import zaber.serial as zs
 
 # graphing imports
 import matplotlib
@@ -57,7 +52,7 @@ class App(QtGui.QWidget):
 
         # initialize and access cameras, motors and graphs
         self.mako = device_init.Mako_Camera()
-        #self.andor = device_init.Andor_Camera()
+        self.andor = device_init.Andor_Camera()
         self.motor = device_init.Motor()
         self.graph = EMCCDthread.Graph()
         self.avg_heatmap = EMCCDthread.HeatMapGraph(25,-1)
@@ -456,6 +451,7 @@ class App(QtGui.QWidget):
         self.canvas.draw()
 
     def draw_curve(self,curve_data):
+        print "curve_data: ", curve_data
         if len(curve_data) == 2:
             popt, pcov = curve_data
             self.subplot.plot(self.graph.x_axis, EMCCDthread.lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
@@ -564,18 +560,20 @@ class App(QtGui.QWidget):
 
     # moves zaber motor, called on by forwards and backwards buttons
     def move_motor_rel(self,distance):
-        self.motor.device.move_rel(distance)
+        self.motor.device.move_rel(distance/0.047625)
         loc = self.motor.device.send(60, 0)
-        self.location_entry.setText(str(loc.data))
+        self.location_entry.setText(str(loc.data*0.047625))
 
      # moves zaber motor to a set location, called on above
     def move_motor_abs(self,pos):
-        self.motor.device.move_abs(pos)
+        self.motor.device.move_abs(pos/0.047625)
         loc = self.motor.device.send(60, 0)
-        self.location_entry.setText(str(loc.data))
+        self.location_entry.setText(str(loc.data*0.047625))
 
     def set_velocity(self, velocity):
-        self.motor.device.send(42,velocity)
+        data = velocity/(9.375*(0.047625/1000))
+        self.motor.device.send(42,data)
+
 
     def restore_default_params(self):
         self.dp_entry.setText("3.0")
