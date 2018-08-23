@@ -8,7 +8,7 @@ import math
 import sys
 import os
 import traceback
-print sys.path
+
 from PyQt4 import QtGui,QtCore
 from PIL import Image
 from PIL import ImageTk
