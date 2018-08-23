@@ -46,6 +46,8 @@ class App(QtGui.QWidget):
     def __init__(self):
         super(App,self).__init__()
 
+        self.output_path = None
+
         #Lock used to halt other threads upon app closing
         self.stop_event = threading.Event()
         self.andor_lock = threading.Lock()
@@ -464,6 +466,11 @@ class App(QtGui.QWidget):
             self.FSR_entry.setText(measured_FSR)
 
         self.canvas.draw()
+
+    def take_screenshot(self):
+        p = QtGui.QPixmap.grabWindow(self.winId())
+        p.save("screenshot.jpg", 'jpg')
+        print "shot taken"
 
     def handle_click(self,event):
         
