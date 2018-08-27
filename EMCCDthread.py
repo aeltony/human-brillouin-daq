@@ -26,7 +26,7 @@ import zaber.serial as zs
 
 # graphing imports
 import matplotlib
-matplotlib.use('TkAgg')
+
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -74,6 +74,8 @@ class EMCCDthread(QtCore.QThread):
         scaled_8bit = np.array(scaled_image, dtype = np.uint8)
 
         loc = np.argmax(scaled_8bit)/512
+        left_right = scaled_8bit[loc].argsort()[-10:][::-1]
+        left_right.sort()
         mid = int((left_right[0]+left_right[-1])/2)
 
         cropped = scaled_8bit[loc:loc+1, mid-40:mid+40] # only returns the middle strip showing Brillouin peaks
@@ -103,6 +105,7 @@ class EMCCDthread(QtCore.QThread):
         return image, BS
 
     def update_scanned_location(self, relative_coord, BS_profile, start_pos, length, num_steps):
+        print "hello?"
         if self.app.CMOSthread.scan_loc is not None:
             #updating stored scanned locations
             loc_ID = self.app.get_current_ID()
@@ -115,7 +118,7 @@ class EMCCDthread(QtCore.QThread):
             table.insertRow(current_row)
             table_elements = [display_coord,average_shift,start_pos,length,num_steps,loc_ID]
             table_items = list(map(lambda elt: QtGui.QTableWidgetItem(str(elt)),table_elements))
-
+            print "apparently added items to table"
             for col_num in range(len(table_items)):
                 table.setItem(current_row,col_num,table_items[col_num])
             
