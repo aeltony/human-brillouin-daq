@@ -31,7 +31,7 @@ import zaber.serial as zs
 
 # graphing imports
 import matplotlib
-
+matplotlib.use('Qt4Agg')
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from scipy.optimize import curve_fit
@@ -98,9 +98,12 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         ### CMOS AND EMCCD PANEL ###
         self.cmos_panel.mousePressEvent = self.handle_click
         self.graph_panel.initialize_canvas(self.graph.fig)
-        self.heatmap_panel.initialize_canvas(self.avg_heatmap.fig)
 
         self.avg_heatmap.plot()
+        print self.avg_heatmap.ax
+        self.heatmap_panel.initialize_canvas(self.avg_heatmap.fig)
+
+
         self.heatmap_panel.canvas.draw()
 
         self.mainUI()
@@ -109,6 +112,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.EMCCDthread.start()
 
     def mainUI(self):
+
+        self.screenshot_btn.clicked.connect(self.take_screenshot)
 
         self.scan_images.setIconSize(QtCore.QSize(1024,1024))
 
@@ -133,7 +138,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.scanned_loc_table.resizeColumnsToContents()
         self.scanned_loc_table.horizontalHeader().setStretchLastSection(True)
 
-        self.slider.valueChanged.connect(self.change_heatmap_depth)
+        #self.slider.valueChanged.connect(self.change_heatmap_depth)
 
         self.delete_btn.clicked.connect(self.delete_entries)
         self.clear_btn.clicked.connect(self.clear_table)
@@ -171,7 +176,6 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         ### VELOCITY AND ACCELERATION PANEL ###
         #######################################
 
-        self.show()
         print "finished showing"
 
     def update_CMOS_panel(self,camera_data):
@@ -188,6 +192,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         #IMPORTANT THAT THESE ARE SET AFTER BOTH PANEL IMAGES ARE SET
         self.detected_center = detected_center
         self.detected_radius = detected_radius
+        self.pupil_center_entry.setText(str(self.detected_center))
+        self.pupil_radius_entry.setText(str(self.detected_radius))
 
 
     def update_EMCCD_panel(self,qImage):
@@ -201,7 +207,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         if BS_data is not None:
             pos,BS_profile = BS_data
             self.avg_heatmap.scanned_BS_values[pos] = sum(list(map(lambda profile: profile[1],BS_profile)))/len(BS_profile) #average BS value
-
+            """
             for depth,BS in BS_profile:
                 if depth not in self.heatmaps:
                     heatmap = EMCCDthread.HeatMapGraph(50,depth)
@@ -212,10 +218,12 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                 else:
                     self.heatmaps[depth].scanned_BS_values[pos] = BS
                     self.heatmaps[depth].plot()
-
+            """
+        print "avg heatmap: ", self.avg_heatmap.scanned_BS_values
         self.avg_heatmap.plot()
         self.heatmap_panel.canvas.draw()
         
+    """
     def change_heatmap_depth(self,value):
 
         depth = sorted(self.heatmaps.keys())[value]
@@ -223,7 +231,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
         #self.coord_grid.addWidget(self.heatmap_panel., 4, 0, 3, 4)
         self.heatmap_panel.canvas.draw()
-
+    """
     def update_graph_panel(self,graph_data):
 
         copied_analyzed_row, brillouin_shift_list = graph_data
@@ -264,8 +272,10 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             x = event.pos().x()
             y = event.pos().y()
             self.CMOSthread.scan_loc = (x,y)
+            self.scan_location_x_entry.setText(str(x))
+            self.scan_location_y_entry.setText(str(y))
             self.set_scan_loc_btn.setChecked(False)
-            print (x,y)
+
 
     def convert_to_pixmap(self,image):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -372,6 +382,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.param2_entry.setText("15")
         self.range_entry.setText("15")
         self.radius_entry.setText("100")
+        self.croppingSize_entry.setText("300")
 
     def set_radius_entry(self,expected_pupil_radius):
         self.radius_entry.setText(str(expected_pupil_radius))
@@ -392,4 +403,5 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     GUI = App()
+    GUI.show()
     sys.exit(app.exec_())

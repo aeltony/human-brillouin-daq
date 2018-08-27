@@ -26,7 +26,7 @@ import zaber.serial as zs
 
 # graphing imports
 import matplotlib
-
+matplotlib.use('Qt4Agg')
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -339,6 +339,7 @@ class HeatMapGraph:
     def plot(self):
 
         points = self.scanned_BS_values.keys()
+        print "scanned_bs: ",self.scanned_BS_values
         if len(points) < 4:
             self.set_resolution(25,-600,600,-600,600)
             null_array = np.full(self.X.shape,-1)

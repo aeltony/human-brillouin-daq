@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>2791</width>
-    <height>1538</height>
+    <height>1662</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,8 +19,8 @@
      <rect>
       <x>754</x>
       <y>13</y>
-      <width>981</width>
-      <height>1451</height>
+      <width>1031</width>
+      <height>1581</height>
      </rect>
     </property>
     <layout class="QGridLayout" name="gridLayout">
@@ -62,37 +62,37 @@
    <widget class="QWidget" name="gridLayoutWidget_2">
     <property name="geometry">
      <rect>
-      <x>13</x>
-      <y>13</y>
-      <width>551</width>
-      <height>456</height>
+      <x>20</x>
+      <y>20</y>
+      <width>721</width>
+      <height>558</height>
      </rect>
     </property>
     <layout class="QGridLayout" name="pupil_detection_panel">
-     <item row="9" column="0">
-      <spacer name="horizontalSpacer">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item row="6" column="1">
-      <widget class="QLineEdit" name="param2_entry">
+     <item row="8" column="1">
+      <widget class="QLineEdit" name="radius_entry">
        <property name="text">
-        <string>300</string>
+        <string>180</string>
        </property>
       </widget>
      </item>
-     <item row="5" column="1">
-      <widget class="QLineEdit" name="param1_entry">
+     <item row="4" column="0">
+      <widget class="QLabel" name="minDist_label">
        <property name="text">
-        <string>1</string>
+        <string>minDist = </string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0">
+      <widget class="QLabel" name="param1_label">
+       <property name="text">
+        <string>param1 = </string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
        </property>
       </widget>
      </item>
@@ -100,74 +100,6 @@
       <widget class="QLineEdit" name="minDist_entry">
        <property name="text">
         <string>1000</string>
-       </property>
-      </widget>
-     </item>
-     <item row="7" column="0">
-      <widget class="QLabel" name="range_label">
-       <property name="text">
-        <string>range = </string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignCenter</set>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0">
-      <widget class="QLabel" name="dp_label">
-       <property name="text">
-        <string>dp =</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignCenter</set>
-       </property>
-      </widget>
-     </item>
-     <item row="12" column="0">
-      <widget class="QPushButton" name="set_coordinates_btn">
-       <property name="text">
-        <string>Set Coordinates</string>
-       </property>
-      </widget>
-     </item>
-     <item row="11" column="0">
-      <widget class="QPushButton" name="default_btn">
-       <property name="text">
-        <string>Restore Defaults</string>
-       </property>
-      </widget>
-     </item>
-     <item row="11" column="1">
-      <widget class="QPushButton" name="radius_btn">
-       <property name="text">
-        <string>Draw Radius Estimate</string>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="1">
-      <widget class="QLineEdit" name="blur_entry">
-       <property name="text">
-        <string>15</string>
-       </property>
-      </widget>
-     </item>
-     <item row="12" column="1">
-      <widget class="QPushButton" name="set_scan_loc_btn">
-       <property name="text">
-        <string>Set Scan Location</string>
-       </property>
-       <property name="checkable">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="6" column="0">
-      <widget class="QLabel" name="param2_label">
-       <property name="text">
-        <string>param2 = </string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignCenter</set>
        </property>
       </widget>
      </item>
@@ -181,6 +113,37 @@
        </property>
       </widget>
      </item>
+     <item row="7" column="0">
+      <widget class="QLabel" name="range_label">
+       <property name="text">
+        <string>range = </string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="6" column="1">
+      <widget class="QLineEdit" name="param2_entry">
+       <property name="text">
+        <string>300</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QLineEdit" name="blur_entry">
+       <property name="text">
+        <string>15</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="1">
+      <widget class="QLineEdit" name="param1_entry">
+       <property name="text">
+        <string>1</string>
+       </property>
+      </widget>
+     </item>
      <item row="7" column="1">
       <widget class="QLineEdit" name="range_entry">
        <property name="text">
@@ -188,10 +151,23 @@
        </property>
       </widget>
      </item>
-     <item row="8" column="1">
-      <widget class="QLineEdit" name="radius_entry">
+     <item row="3" column="0">
+      <widget class="QLabel" name="dp_label">
        <property name="text">
-        <string>180</string>
+        <string>dp =</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="6" column="0">
+      <widget class="QLabel" name="param2_label">
+       <property name="text">
+        <string>param2 = </string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
        </property>
       </widget>
      </item>
@@ -211,13 +187,90 @@
        </property>
       </widget>
      </item>
-     <item row="4" column="0">
-      <widget class="QLabel" name="minDist_label">
+     <item row="3" column="1">
+      <widget class="QLineEdit" name="dp_entry">
        <property name="text">
-        <string>minDist = </string>
+        <string>3</string>
+       </property>
+      </widget>
+     </item>
+     <item row="10" column="3">
+      <widget class="QPushButton" name="set_coordinates_btn">
+       <property name="text">
+        <string>Set Coordinates</string>
+       </property>
+      </widget>
+     </item>
+     <item row="9" column="1">
+      <widget class="QLineEdit" name="croppingSize_entry">
+       <property name="text">
+        <string>300</string>
+       </property>
+      </widget>
+     </item>
+     <item row="9" column="0">
+      <widget class="QLabel" name="croppingSize_label">
+       <property name="text">
+        <string>croppingSize = </string>
        </property>
        <property name="alignment">
         <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="10" column="0">
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="10" column="1">
+      <spacer name="horizontalSpacer_2">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="10" column="2">
+      <spacer name="horizontalSpacer_3">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="13" column="3">
+      <widget class="QPushButton" name="off_btn">
+       <property name="text">
+        <string>Turn Off</string>
+       </property>
+      </widget>
+     </item>
+     <item row="6" column="3">
+      <widget class="QPushButton" name="set_scan_loc_btn">
+       <property name="text">
+        <string>Set Scan Location</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
@@ -240,47 +293,94 @@
        </property>
       </widget>
      </item>
-     <item row="3" column="1">
-      <widget class="QLineEdit" name="dp_entry">
+     <item row="4" column="3">
+      <widget class="QLineEdit" name="scan_location_x_entry">
        <property name="text">
-        <string>3</string>
+        <string>598</string>
        </property>
       </widget>
      </item>
-     <item row="5" column="0">
-      <widget class="QLabel" name="param1_label">
+     <item row="5" column="3">
+      <widget class="QLineEdit" name="scan_location_y_entry">
        <property name="text">
-        <string>param1 = </string>
+        <string>564</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="2">
+      <widget class="QLabel" name="scan_location_x_label">
+       <property name="text">
+        <string>x =</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="2">
+      <widget class="QLabel" name="scan_location_y_label">
+       <property name="text">
+        <string>y =</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="12" column="0">
+      <widget class="QLabel" name="pupil_center_label">
+       <property name="text">
+        <string>Pupil Center</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignCenter</set>
        </property>
       </widget>
      </item>
-     <item row="13" column="1">
-      <widget class="QPushButton" name="off_btn">
+     <item row="12" column="1">
+      <widget class="QLabel" name="pupil_radius_label">
        <property name="text">
-        <string>Turn Off</string>
+        <string>Pupil Radius</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
        </property>
       </widget>
      </item>
-     <item row="9" column="1">
-      <spacer name="horizontalSpacer_2">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
      <item row="13" column="0">
+      <widget class="QLineEdit" name="pupil_center_entry"/>
+     </item>
+     <item row="13" column="1">
+      <widget class="QLineEdit" name="pupil_radius_entry"/>
+     </item>
+     <item row="3" column="3">
+      <widget class="QLabel" name="scan_location_label">
+       <property name="text">
+        <string>Scan Location</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="13" column="2">
       <widget class="QPushButton" name="apply_btn">
        <property name="text">
         <string>Apply Changes</string>
+       </property>
+      </widget>
+     </item>
+     <item row="8" column="3">
+      <widget class="QPushButton" name="radius_btn">
+       <property name="text">
+        <string>Draw Radius Estimate</string>
+       </property>
+      </widget>
+     </item>
+     <item row="9" column="3">
+      <widget class="QPushButton" name="default_btn">
+       <property name="text">
+        <string>Restore Defaults</string>
        </property>
       </widget>
      </item>
@@ -290,7 +390,7 @@
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>520</y>
+      <y>600</y>
       <width>551</width>
       <height>281</height>
      </rect>
@@ -698,9 +798,9 @@
    <widget class="QSplitter" name="splitter">
     <property name="geometry">
      <rect>
-      <x>1740</x>
+      <x>1790</x>
       <y>10</y>
-      <width>1031</width>
+      <width>981</width>
       <height>1451</height>
      </rect>
     </property>
@@ -714,6 +814,19 @@
     </widget>
     <widget class="QListWidget" name="scan_images"/>
     <widget class="MplWidget" name="graph_panel" native="true"/>
+   </widget>
+   <widget class="QPushButton" name="screenshot_btn">
+    <property name="geometry">
+     <rect>
+      <x>590</x>
+      <y>610</y>
+      <width>141</width>
+      <height>34</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Take Screenshot</string>
+    </property>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">

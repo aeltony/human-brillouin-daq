@@ -95,10 +95,11 @@ class CMOSthread(QtCore.QThread):
         self.param2 = None
         self.radius_range = None
         self.expected_pupil_radius = None
+        self.croppingSize = None
         self.popup = None
 
         self.coords = False
-        self.scan_loc = (598, 564)
+        self.scan_loc = (int(self.app.scan_location_x_entry.displayText()),int(self.app.scan_location_y_entry.displayText()))
 
     #only updates plotted scanned points in coord panel image
     def update_coord_panel(self):
@@ -134,7 +135,8 @@ class CMOSthread(QtCore.QThread):
         self.param2 = int(self.app.param2_entry.displayText())
         self.radius_range = int(self.app.range_entry.displayText())
         self.expected_pupil_radius = int(self.app.radius_entry.displayText())
-        print "expected Pupil radius", self.expected_pupil_radius
+        self.croppingSize = int(self.app.croppingSize_entry.displayText())
+        self.scan_loc = (int(self.app.scan_location_x_entry.displayText()),int(self.app.scan_location_y_entry.displayText()))
 
     def ask_radius_estimate(self):
         self.popup = Popup(self)
@@ -193,10 +195,10 @@ class CMOSthread(QtCore.QThread):
             ### RUN PUPIL DETECTION ###
             ###########################
 
-            if self.medianBlur is None or self.dp is None or self.minDist is None or self.param1 is None or self.param2 is None or self.radius_range is None or self.expected_pupil_radius is None:
+            if self.medianBlur is None or self.dp is None or self.minDist is None or self.param1 is None or self.param2 is None or self.radius_range is None or self.expected_pupil_radius is None or self.croppingSize is None:
                 pupil_data = [plain_image,None,None]
             else:
-                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.coords,self.scan_loc)
+                pupil_data = ht.detect_pupil_frame(plain_image,self.medianBlur,self.dp,self.minDist,self.param1,self.param2,self.radius_range,self.expected_pupil_radius,self.croppingSize,self.coords,self.scan_loc)
 
 
             #################################

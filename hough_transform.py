@@ -65,7 +65,7 @@ param2: Accumulator threshold value for the cv2.HOUGH_GRADIENT method. The small
 minRadius: Minimum size of the radius (in pixels).
 maxRadius: Maximum size of the radius (in pixels).
 """
-def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,expected_radius,coordinates,ROI_center=None):
+def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,expected_radius,croppingSize,coordinates,ROI_center=None):
     
     if frame is None: 
         return
@@ -74,7 +74,7 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
     frame_bgr = frame.copy()
 
     if ROI_center is not None:
-        crop_size = 2*expected_radius+100
+        crop_size = croppingSize
         min_y, max_y, min_x, max_x = max(0,ROI_center[1]-crop_size), min(dim[0],ROI_center[1]+crop_size), max(0,ROI_center[0]-crop_size), min(dim[1],ROI_center[0]+crop_size)
         cropped_frame = frame_bgr[min_y:max_y, min_x:max_x]
     else:
@@ -123,8 +123,10 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
         #print "No circles detected!"
 
     #control 
-    #cv2.line(cropped_frame,(0,0),(0,cropped_frame.shape[0]),(255,255,255),5) # vertical line
-    #cv2.line(cropped_frame,(0,0),(cropped_frame.shape[1],0),(255,255,255),5) # horizontal line
+    cv2.line(cropped_frame,(0,0),(0,cropped_frame.shape[0]),(0,0,255),1) # vertical line
+    cv2.line(cropped_frame,(cropped_frame.shape[1]-1,0),(cropped_frame.shape[1]-1,cropped_frame.shape[0]-1),(0,0,255),1)
+    cv2.line(cropped_frame,(0,0),(cropped_frame.shape[1],0),(0,0,255),1) # horizontal line
+    cv2.line(cropped_frame,(0,cropped_frame.shape[0]-1),(cropped_frame.shape[1]-1,cropped_frame.shape[0]-1),(0,0,255),1)
 
     if ROI_center is not None and min_circle_center is not None:
         min_circle_center = (min_circle_center[0]+min_x,min_circle_center[1]+min_y)
