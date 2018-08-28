@@ -53,11 +53,9 @@ class Popup(QtGui.QWidget):
 
     def mousePressEvent(self,QMouseEvent):
         self.click_pos = (QMouseEvent.x(),QMouseEvent.y())
-        print self.click_pos
 
     def mouseReleaseEvent(self,QMouseEvent):
         self.release_pos = (QMouseEvent.x(),QMouseEvent.y())
-        print self.release_pos
 
     def done(self):
         if self.click_pos is not None and self.release_pos is not None:
@@ -143,8 +141,14 @@ class CMOSthread(QtCore.QThread):
 
     def trigger_record(self):
         if not self.app.record_btn.isChecked():
+
+            ts = datetime.datetime.now()
+            timestr = "{}".format(ts.strftime("%m-%d-%H-%M-%S"))
+
             written_video_frames = 0
-            pupil_video_writer = skv.FFmpegWriter('data_acquisition/pupil_video.avi',outputdict={
+
+            path = self.app.save_path+"/"+self.app.session_name+"_"+timestr+"_pupil_video.avi"
+            pupil_video_writer = skv.FFmpegWriter(path,outputdict={
             '-vcodec':'libx264',
             '-b':'30000000',
             '-vf':'setpts=4*PTS',
@@ -160,7 +164,8 @@ class CMOSthread(QtCore.QThread):
             self.pupil_video_frames = []
 
             frame_number = 0
-            pupil_data_file = open('data_acquisition/pupil_data.txt','w+')
+
+            pupil_data_file = open(self.app.save_path+"/"+self.app.session_name+"_"+timestr+"_pupil_data.txt",'w+')
 
             for frame_number in range(1,len(self.pupil_data_list)+1):
                 pupil_center, pupil_radius = self.pupil_data_list[frame_number-1]

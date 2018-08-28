@@ -26,7 +26,7 @@ import zaber.serial as zs
 
 # graphing imports
 import matplotlib
-matplotlib.use('Qt4Agg')
+matplotlib.use('TkAgg')
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -105,7 +105,7 @@ class EMCCDthread(QtCore.QThread):
         return image, BS
 
     def update_scanned_location(self, relative_coord, BS_profile, start_pos, length, num_steps):
-        print "hello?"
+
         if self.app.CMOSthread.scan_loc is not None:
             #updating stored scanned locations
             loc_ID = self.app.get_current_ID()
@@ -118,7 +118,6 @@ class EMCCDthread(QtCore.QThread):
             table.insertRow(current_row)
             table_elements = [display_coord,average_shift,start_pos,length,num_steps,loc_ID]
             table_items = list(map(lambda elt: QtGui.QTableWidgetItem(str(elt)),table_elements))
-            print "apparently added items to table"
             for col_num in range(len(table_items)):
                 table.setItem(current_row,col_num,table_items[col_num])
             
@@ -129,24 +128,19 @@ class EMCCDthread(QtCore.QThread):
         ############
         ### SCAN ###
         ############
-
+        print "starting scan"
         self.app.move_motor_abs(start_pos)
         step_size = length // num_steps
         BS_profile = []
+        image_list = []
 
         image,BS = self.acquire_frame()
         BS_profile.append((start_pos,BS))
 
         self.app.scan_images.clear()
 
-        
-        item = QtGui.QListWidgetItem()
-        pixmap = self.app.convert_to_pixmap(image)
-        icon = QtGui.QIcon()
-        icon.addPixmap(pixmap)
-        item.setIcon(icon)
-        self.app.scan_images.addItem(item)
-    
+        image_list.append(image)
+
         image = Image.fromarray(image)
         self.export_list.append(image) #initial frame
 
@@ -158,17 +152,11 @@ class EMCCDthread(QtCore.QThread):
             image,BS = self.acquire_frame()
             BS_profile.append((start_pos+step_size*i,BS))
 
-            
-            item = QtGui.QListWidgetItem()
-            pixmap = self.app.convert_to_pixmap(image)
-            icon = QtGui.QIcon()
-            icon.addPixmap(pixmap)
-            item.setIcon(icon)
-            self.app.scan_images.addItem(item)
+            image_list.append(image)
             
             image = Image.fromarray(image)
             self.export_list.append(image)
-
+            print "processed frame"
 
 
         scan_loc = self.app.CMOSthread.scan_loc
@@ -180,10 +168,26 @@ class EMCCDthread(QtCore.QThread):
             self.emit(QtCore.SIGNAL('update_heatmap_panel(PyQt_PyObject)'),(relative_coord,BS_profile))
 
         #EXPORT
+        
+        for image in image_list:
+            item = QtGui.QListWidgetItem()
+            pixmap = self.app.convert_to_pixmap(image)
+            icon = QtGui.QIcon()
+            icon.addPixmap(pixmap)
+            item.setIcon(icon)
+            self.app.scan_images.addItem(item)
         """
         if len(self.export_list) != 0:
-            self.export_list[0].save("data_acquisition/scan.tif",compression="tiff_deflate",save_all=True,append_images=self.export_list[1:]) 
+            ts = datetime.datetime.now()
+            timestr = "{}".format(ts.strftime("%m-%d-%H-%M-%S"))
+
+            path = self.app.save_path+"/"+self.app.session_name+"_"+timestr+"_scan.tif"
+            
+            self.export_list[0].save(path,compression="tiff_deflate",save_all=True,append_images=self.export_list[1:]) 
             self.export_list = []
+
+
+
             print "finished exporting as tif"
         """
 
@@ -328,7 +332,7 @@ class Graph(object):
 
 class HeatMapGraph:
     def __init__(self,resolution,depth):
-        self.fig = Figure(figsize = (5,5), dpi = 100)
+        self.fig = Figure(figsize = (10,10), dpi = 90)
         self.ax = None
         self.res = None
         self.depth = depth
@@ -339,7 +343,6 @@ class HeatMapGraph:
     def plot(self):
 
         points = self.scanned_BS_values.keys()
-        print "scanned_bs: ",self.scanned_BS_values
         if len(points) < 4:
             self.set_resolution(25,-600,600,-600,600)
             null_array = np.full(self.X.shape,-1)
@@ -390,6 +393,7 @@ class HeatMapGraph:
         self.ax.set_xlabel('x (pixels)')
         self.ax.set_ylabel('y (pixels)')
         self.ax.set_aspect('equal')
+
 
 
     def set_resolution(self,resolution,min_x,max_x,min_y,max_y):

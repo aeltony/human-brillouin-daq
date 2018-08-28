@@ -31,7 +31,7 @@ import zaber.serial as zs
 
 # graphing imports
 import matplotlib
-matplotlib.use('Qt4Agg')
+matplotlib.use('TkAgg')
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from scipy.optimize import curve_fit
@@ -45,7 +45,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         super(App,self).__init__()
         self.setupUi(self)
 
-        self.output_path = None
+        self.save_path = self.file_entry.displayText()
+        self.session_name = self.session_entry.displayText()
 
         #Lock used to halt other threads upon app closing
         self.stop_event = threading.Event()
@@ -66,6 +67,9 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
         self.subplot = None
         self.brillouin_plot = None
+        self.scatter_subplot = None
+        self.scatter_brillouin_plot = None
+
         self.FSR = None
         self.SD = None
 
@@ -100,18 +104,19 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.graph_panel.initialize_canvas(self.graph.fig)
 
         self.avg_heatmap.plot()
-        print self.avg_heatmap.ax
         self.heatmap_panel.initialize_canvas(self.avg_heatmap.fig)
 
 
         self.heatmap_panel.canvas.draw()
-
+        self.heatmap_panel.show()
         self.mainUI()
 
         self.CMOSthread.start()
         self.EMCCDthread.start()
 
     def mainUI(self):
+
+        self.session_entry.textChanged.connect(self.session_change)
 
         self.screenshot_btn.clicked.connect(self.take_screenshot)
 
@@ -170,6 +175,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         ### DATA COLLECTION PANEL ###
         #############################
 
+
+        self.file_btn.clicked.connect(self.select_file)
         self.scan_btn.clicked.connect(lambda: self.EMCCDthread.scan(float(self.start_pos.displayText()),float(self.scan_length.displayText()),int(self.num_frames.displayText())))
 
         #######################################
@@ -207,45 +214,47 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         if BS_data is not None:
             pos,BS_profile = BS_data
             self.avg_heatmap.scanned_BS_values[pos] = sum(list(map(lambda profile: profile[1],BS_profile)))/len(BS_profile) #average BS value
-            """
-            for depth,BS in BS_profile:
-                if depth not in self.heatmaps:
-                    heatmap = EMCCDthread.HeatMapGraph(50,depth)
-                    heatmap.scanned_BS_values[pos] = BS
-                    heatmap.plot()
-                    self.heatmaps[depth] = heatmap
-                    self.slider.setMaximum(len(self.heatmaps)-1)
-                else:
-                    self.heatmaps[depth].scanned_BS_values[pos] = BS
-                    self.heatmaps[depth].plot()
-            """
-        print "avg heatmap: ", self.avg_heatmap.scanned_BS_values
+
         self.avg_heatmap.plot()
         self.heatmap_panel.canvas.draw()
-        
-    """
-    def change_heatmap_depth(self,value):
 
-        depth = sorted(self.heatmaps.keys())[value]
-        self.heatmap_panel.canvas = FigureCanvasQTAgg(self.heatmaps[depth].fig)
-
-        #self.coord_grid.addWidget(self.heatmap_panel., 4, 0, 3, 4)
-        self.heatmap_panel.canvas.draw()
-    """
     def update_graph_panel(self,graph_data):
 
         copied_analyzed_row, brillouin_shift_list = graph_data
-
+        
         self.graph.fig.clf()
         self.subplot = self.graph.fig.add_subplot(211)
         self.subplot.set_xlabel("Pixel")
         self.subplot.set_ylabel("Counts")
 
         self.brillouin_plot = self.graph.fig.add_subplot(212)
-
+        
         self.subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
         self.brillouin_plot.scatter(np.arange(1, len(brillouin_shift_list)+1), np.array(brillouin_shift_list))
+        """
+        if self.subplot is None and self.brillouin_plot is None:
+            self.graph.fig.clf()
+            self.subplot = self.graph.fig.add_subplot(211)
+            self.subplot.set_xlabel("Pixel")
+            self.subplot.set_ylabel("Counts")
+            self.brillouin_plot = self.graph.fig.add_subplot(212)
 
+            self.scatter_subplot = self.subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
+            self.scatter_brillouin_plot = self.brillouin_plot.scatter(np.arange(1, len(brillouin_shift_list)+1), np.array(brillouin_shift_list))
+
+        else:
+            scatter_array = np.zeros((2,len(copied_analyzed_row)))
+            scatter_array[0] = self.graph.x_axis.copy()
+            scatter_array[1] = copied_analyzed_row
+            print scatter_array
+            brillouin_scatter_array = np.zeros((2,len(brillouin_shift_list)))
+            brillouin_scatter_array[0] = np.arange(1,len(brillouin_shift_list)+1)
+            brillouin_scatter_array[1] = np.array(brillouin_shift_list)
+
+            print brillouin_scatter_array
+            self.scatter_subplot.set_offsets(scatter_array)
+            self.scatter_brillouin_plot.set_offsets(brillouin_scatter_array)
+        """
         self.graph_panel.canvas.draw()
 
     def draw_curve(self,curve_data):
@@ -261,9 +270,17 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
         self.graph_panel.canvas.draw()
 
+    def session_change(self,name):
+        self.session_name = name
+
     def take_screenshot(self):
+
         p = QtGui.QPixmap.grabWindow(self.winId())
-        p.save("screenshot.jpg", 'jpg')
+
+        ts = datetime.datetime.now()
+        timestr = "{}".format(ts.strftime("%m-%d-%H-%M-%S"))
+
+        p.save(self.save_path+"/"+self.session_name+"_"+timestr+"_screenshot.jpg", 'jpg')
         print "shot taken"
 
     def handle_click(self,event):
@@ -330,6 +347,11 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.coord_panel.setPixmap(coord_pixmap)
         self.coord_panel.show()
         self.heatmap_panel.canvas.draw()
+
+    def select_file(self):
+        self.save_path = str(QtGui.QFileDialog.getExistingDirectory(self, "Select Directory"))
+        if self.save_path != "":
+            self.file_entry.setText(self.save_path)
 
 
     #similar to shutters.py, called on by reference button 
