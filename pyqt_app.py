@@ -358,19 +358,24 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             self.file_entry.setText(self.save_path)
 
     def export_scans(self):
+        
+
+        selected_items = self.scanned_loc_table.selectedItems()
+        selected_row_set = set(map(lambda item: item.row(),selected_items))
+        IDs = set(map(lambda row: self.scanned_loc_table.item(row,5).text(),selected_row_set))
+
+        if len(IDs) == 0: 
+            return
+
         ts = datetime.datetime.now()
         timestr = "{}".format(ts.strftime("%m-%d-%H-%M-%S"))
 
-        path = self.save_path+"/"+self.session_name+"_"+timestr+"_scan.hdf5"
+        path = str(self.save_path)+"/"+str(self.session_name)+"_"+timestr+"_scan.hdf5"
     
         with h5py.File(path, "w") as f:
 
             brillouin_profile = f.create_group("brillouin_profiles")
             spectrographs = f.create_group("spectrographs")
-
-            selected_items = self.scanned_loc_table.selectedItems()
-            selected_row_set = set(map(lambda item: item.row(),selected_items))
-            IDs = set(map(lambda row: self.scanned_loc_table.item(row,5).text(),selected_row_set))
 
             for ID in IDs:
                 pos = self.scanned_locations[int(ID)]
@@ -378,13 +383,13 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                 # brillouin profiles
                 profile = self.brillouin_profiles[int(ID)]
                 print "profile shape", profile.shape
-                brillouin_dataset = brillouin_profile.create_dataset(ID,profile.shape,dtype=np.float64)
+                brillouin_dataset = brillouin_profile.create_dataset(str(ID),profile.shape)
                 brillouin_dataset[...] = profile
 
                 # scan images
                 spectrograph_array = self.spectrograph_dict[int(ID)]
                 print "spectrograph shape", spectrograph_array.shape
-                spectrograph_dataset = spectrograph.create_dataset(ID,spectrograph_array.shape,dtype=np.uint8)
+                spectrograph_dataset = spectrographs.create_dataset(str(ID),spectrograph_array.shape,dtype=np.uint8)
                 spectrograph_dataset[...] = spectrograph_array
 
 
