@@ -104,15 +104,19 @@ class EMCCDthread(QtCore.QThread):
 
         return image, BS
 
-    def update_scanned_location(self, relative_coord, BS_profile, start_pos, length, num_steps):
+    def update_scanned_location(self, relative_coord, BS_profile, image_list, start_pos, length, num_steps):
 
         if self.app.CMOSthread.scan_loc is not None:
             #updating stored scanned locations
             loc_ID = self.app.get_current_ID()
             self.app.scanned_locations[loc_ID] = relative_coord
+            self.app.brillouin_profiles[loc_ID] = np.array(BS_profile) #brillouin_profiles lists all scans ever taken
+            self.app.spectrograph_dict[loc_ID] = np.array(image_list)
+
             average_shift = sum(list(map(lambda profile: profile[1],BS_profile)))/len(BS_profile)
 
             display_coord = (relative_coord[0],-relative_coord[1])
+
             table = self.app.scanned_loc_table
             current_row = table.rowCount()-1
             table.insertRow(current_row)
@@ -137,7 +141,7 @@ class EMCCDthread(QtCore.QThread):
         image,BS = self.acquire_frame()
         BS_profile.append((start_pos,BS))
 
-        self.app.scan_images.clear()
+        self.app.spectrograph.clear()
 
         image_list.append(image)
 
@@ -163,7 +167,7 @@ class EMCCDthread(QtCore.QThread):
         center = self.app.detected_center
         if scan_loc is not None and center is not None:
             relative_coord = (scan_loc[0]-center[0],scan_loc[1]-center[1])
-            self.update_scanned_location(relative_coord,BS_profile,start_pos,length,num_steps)
+            self.update_scanned_location(relative_coord,BS_profile,image_list,start_pos,length,num_steps)
 
             self.emit(QtCore.SIGNAL('update_heatmap_panel(PyQt_PyObject)'),(relative_coord,BS_profile))
 
@@ -175,7 +179,8 @@ class EMCCDthread(QtCore.QThread):
             icon = QtGui.QIcon()
             icon.addPixmap(pixmap)
             item.setIcon(icon)
-            self.app.scan_images.addItem(item)
+            self.app.spectrograph.addItem(item)
+
         """
         if len(self.export_list) != 0:
             ts = datetime.datetime.now()

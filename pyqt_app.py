@@ -8,12 +8,14 @@ import math
 import sys
 import os
 import traceback
+from ast import literal_eval
 
 from PyQt4 import QtGui,QtCore
 from PIL import Image
 from PIL import ImageTk
 import hough_transform as ht
 import skvideo.io as skv
+import h5py
 
 import CMOSthread
 import EMCCDthread
@@ -85,6 +87,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.detected_radius = None
         self.scanned_locations = {} #maps unique id to scanned location in coordinate system
         self.current_ID = 10000
+        self.brillouin_profiles = {}    
+        self.spectrograph_dict = {}
 
         self.heatmaps = {-1:self.avg_heatmap}
 
@@ -120,7 +124,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
         self.screenshot_btn.clicked.connect(self.take_screenshot)
 
-        self.scan_images.setIconSize(QtCore.QSize(1024,1024))
+        self.spectrograph.setIconSize(QtCore.QSize(1024,1024))
 
         #############################
         ### PUPIL DETECTION PANEL ###
@@ -175,9 +179,9 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         ### DATA COLLECTION PANEL ###
         #############################
 
-
         self.file_btn.clicked.connect(self.select_file)
         self.scan_btn.clicked.connect(lambda: self.EMCCDthread.scan(float(self.start_pos.displayText()),float(self.scan_length.displayText()),int(self.num_frames.displayText())))
+        self.export_btn.clicked.connect(self.export_scans)
 
         #######################################
         ### VELOCITY AND ACCELERATION PANEL ###
@@ -310,9 +314,9 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         selected_items = self.scanned_loc_table.selectedItems()
         selected_row_set = set(map(lambda item: item.row(),selected_items))
         sorted_row_set = sorted(list(selected_row_set),reverse=True)
+        IDs = list(map(lambda row: self.scanned_loc_table.item(row,5).text(),sorted_row_set))
 
-        for row in selected_row_set:
-            ID = self.scanned_loc_table.item(row,5).text()
+        for ID in IDs:
             pos = self.scanned_locations[int(ID)]
             del self.scanned_locations[int(ID)]
             for depth in self.heatmaps:
@@ -352,6 +356,37 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.save_path = str(QtGui.QFileDialog.getExistingDirectory(self, "Select Directory"))
         if self.save_path != "":
             self.file_entry.setText(self.save_path)
+
+    def export_scans(self):
+        ts = datetime.datetime.now()
+        timestr = "{}".format(ts.strftime("%m-%d-%H-%M-%S"))
+
+        path = self.save_path+"/"+self.session_name+"_"+timestr+"_scan.hdf5"
+    
+        with h5py.File(path, "w") as f:
+
+            brillouin_profile = f.create_group("brillouin_profiles")
+            spectrographs = f.create_group("spectrographs")
+
+            selected_items = self.scanned_loc_table.selectedItems()
+            selected_row_set = set(map(lambda item: item.row(),selected_items))
+            IDs = set(map(lambda row: self.scanned_loc_table.item(row,5).text(),selected_row_set))
+
+            for ID in IDs:
+                pos = self.scanned_locations[int(ID)]
+
+                # brillouin profiles
+                profile = self.brillouin_profiles[int(ID)]
+                print "profile shape", profile.shape
+                brillouin_dataset = brillouin_profile.create_dataset(ID,profile.shape,dtype=np.float64)
+                brillouin_dataset[...] = profile
+
+                # scan images
+                spectrograph_array = self.spectrograph_dict[int(ID)]
+                print "spectrograph shape", spectrograph_array.shape
+                spectrograph_dataset = spectrograph.create_dataset(ID,spectrograph_array.shape,dtype=np.uint8)
+                spectrograph_dataset[...] = spectrograph_array
+
 
 
     #similar to shutters.py, called on by reference button 
