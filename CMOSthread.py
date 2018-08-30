@@ -193,6 +193,7 @@ class CMOSthread(QtCore.QThread):
                            dtype = np.uint8,
                            shape = (self.frame.height,self.frame.width))    
             resized_image = imutils.resize(image_arr, width=1024)
+
             plain_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2BGR)
             dim = plain_image.shape
 

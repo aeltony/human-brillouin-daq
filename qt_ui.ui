@@ -20,12 +20,16 @@
       <x>754</x>
       <y>13</y>
       <width>1031</width>
-      <height>1581</height>
+      <height>1481</height>
      </rect>
     </property>
     <layout class="QGridLayout" name="gridLayout">
-     <item row="1" column="2">
-      <widget class="MplWidget" name="heatmap_panel" native="true"/>
+     <item row="0" column="1" colspan="2">
+      <widget class="QLabel" name="cmos_panel">
+       <property name="text">
+        <string>TextLabel</string>
+       </property>
+      </widget>
      </item>
      <item row="1" column="1">
       <widget class="QLabel" name="coord_panel">
@@ -34,12 +38,8 @@
        </property>
       </widget>
      </item>
-     <item row="0" column="1" colspan="2">
-      <widget class="QLabel" name="cmos_panel">
-       <property name="text">
-        <string>TextLabel</string>
-       </property>
-      </widget>
+     <item row="1" column="2">
+      <widget class="MplWidget" name="heatmap_panel" native="true"/>
      </item>
     </layout>
    </widget>
@@ -280,14 +280,14 @@
      <item row="4" column="3">
       <widget class="QLineEdit" name="scan_location_x_entry">
        <property name="text">
-        <string>598</string>
+        <string>412</string>
        </property>
       </widget>
      </item>
      <item row="5" column="3">
       <widget class="QLineEdit" name="scan_location_y_entry">
        <property name="text">
-        <string>564</string>
+        <string>374</string>
        </property>
       </widget>
      </item>
@@ -404,7 +404,10 @@
      <item row="1" column="1">
       <widget class="QLabel" name="acceleration_label">
        <property name="text">
-        <string>Acceleration (um/s^2)</string>
+        <string>Acceleration (mm/s^2)</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
        </property>
       </widget>
      </item>
@@ -453,7 +456,10 @@
      <item row="1" column="0">
       <widget class="QLabel" name="velocity_label">
        <property name="text">
-        <string>Velocity (um/s)</string>
+        <string>Velocity (mm/s)</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
        </property>
       </widget>
      </item>
@@ -468,6 +474,13 @@
       <widget class="QPushButton" name="home_btn">
        <property name="text">
         <string>Home</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="2">
+      <widget class="QPushButton" name="apply_vel_acc_btn">
+       <property name="text">
+        <string>Apply Changes</string>
        </property>
       </widget>
      </item>
@@ -552,12 +565,18 @@
        <property name="text">
         <string>#Frames</string>
        </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
       </widget>
      </item>
      <item row="1" column="1">
       <widget class="QLabel" name="scan_length_label">
        <property name="text">
         <string>Length (um)</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
        </property>
       </widget>
      </item>
@@ -618,6 +637,9 @@
       <widget class="QLabel" name="start_pos_label">
        <property name="text">
         <string>Start Position (um)</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
        </property>
       </widget>
      </item>
@@ -698,6 +720,9 @@
        <property name="text">
         <string>SD</string>
        </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
       </widget>
      </item>
      <item row="2" column="0">
@@ -761,12 +786,15 @@
        <property name="text">
         <string>FSR</string>
        </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
       </widget>
      </item>
      <item row="9" column="0">
       <widget class="QPushButton" name="export_btn">
        <property name="text">
-        <string>Export Sleected</string>
+        <string>Export Selected</string>
        </property>
       </widget>
      </item>
@@ -822,13 +850,83 @@
    <widget class="QWidget" name="gridLayoutWidget_6">
     <property name="geometry">
      <rect>
-      <x>1820</x>
-      <y>1710</y>
+      <x>760</x>
+      <y>1530</y>
       <width>551</width>
-      <height>91</height>
+      <height>161</height>
      </rect>
     </property>
-    <layout class="QGridLayout" name="gridLayout_2"/>
+    <layout class="QGridLayout" name="gridLayout_2">
+     <item row="2" column="0">
+      <widget class="QLineEdit" name="set_temp_entry">
+       <property name="text">
+        <string>-80</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="2">
+      <widget class="QLabel" name="label_5">
+       <property name="text">
+        <string>Exposure Time</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="2">
+      <widget class="QLineEdit" name="exposure_time_entry">
+       <property name="text">
+        <string>0.5</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QLineEdit" name="get_temp_entry"/>
+     </item>
+     <item row="1" column="1">
+      <widget class="QLabel" name="label_3">
+       <property name="text">
+        <string>Get Temperature</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="label_2">
+       <property name="text">
+        <string>Set Temperature</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="3">
+      <widget class="QPushButton" name="emccd_apply_btn">
+       <property name="text">
+        <string>Apply Changes</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="0" colspan="4">
+      <widget class="QLabel" name="label">
+       <property name="font">
+        <font>
+         <pointsize>10</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>EMCCD Panel</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </widget>
    <widget class="QWidget" name="gridLayoutWidget_7">
     <property name="geometry">
@@ -898,6 +996,19 @@
      </item>
     </layout>
    </widget>
+   <zorder>gridLayoutWidget</zorder>
+   <zorder>gridLayoutWidget_2</zorder>
+   <zorder>gridLayoutWidget_3</zorder>
+   <zorder>gridLayoutWidget_4</zorder>
+   <zorder>gridLayoutWidget_5</zorder>
+   <zorder>splitter</zorder>
+   <zorder>screenshot_btn</zorder>
+   <zorder>gridLayoutWidget_6</zorder>
+   <zorder>gridLayoutWidget_7</zorder>
+   <zorder>gridLayoutWidget_8</zorder>
+   <zorder>heatmap_panel</zorder>
+   <zorder>coord_panel</zorder>
+   <zorder>cmos_panel</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

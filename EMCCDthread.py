@@ -60,6 +60,12 @@ class EMCCDthread(QtCore.QThread):
         self.brillouin_shift_list = []
         self.scan_ready = False
 
+    def get_water_BS(self,T):
+        return -5.219*10**(-5)*T**2 + 0.01312*T + 4.836
+
+    def get_plastic_BS(self,T):
+        return 16.3291 - (-0.0005512*T**2 + 0.04333*T + 6.019)
+
     def acquire_frame(self):
         with self.andor_lock:
             self.andor.cam.StartAcquisition() 
@@ -79,13 +85,12 @@ class EMCCDthread(QtCore.QThread):
         mid = int((left_right[0]+left_right[-1])/2)
 
         cropped = scaled_8bit[loc:loc+1, mid-40:mid+40] # only returns the middle strip showing Brillouin peaks
-        print cropped.shape
+
         if cropped.size == 0:
             print "CROPPED IS EMPTY"
             cropped = np.zeros((14,80), dtype = np.uint8)
 
         image = imutils.resize(cropped, width=1024)
-        image = cv2.cvtColor(image,cv2.COLOR_GRAY2BGR)
 
         #obtain brillouin value
         FSR = float(self.app.FSR_entry.displayText())
@@ -174,6 +179,7 @@ class EMCCDthread(QtCore.QThread):
         #EXPORT
         
         for image in image_list:
+            image = cv2.cvtColor(image,cv2.COLOR_GRAY2BGR)
             item = QtGui.QListWidgetItem()
             pixmap = self.app.convert_to_pixmap(image)
             icon = QtGui.QIcon()
@@ -181,20 +187,6 @@ class EMCCDthread(QtCore.QThread):
             item.setIcon(icon)
             self.app.spectrograph.addItem(item)
 
-        """
-        if len(self.export_list) != 0:
-            ts = datetime.datetime.now()
-            timestr = "{}".format(ts.strftime("%m-%d-%H-%M-%S"))
-
-            path = self.app.save_path+"/"+self.app.session_name+"_"+timestr+"_scan.tif"
-            
-            self.export_list[0].save(path,compression="tiff_deflate",save_all=True,append_images=self.export_list[1:]) 
-            self.export_list = []
-
-
-
-            print "finished exporting as tif"
-        """
 
     def run(self):
         while not self.stop_event.is_set():
@@ -256,6 +248,14 @@ class EMCCDthread(QtCore.QThread):
 
         copied_analyzed_row = np.array(self.analyzed_row)
 
+
+        graph = self.app.graph
+        graph.fig.clf()
+        self.app.subplot = graph.fig.add_subplot(211)
+        self.app.subplot.set_xlabel("Pixel")
+        self.app.subplot.set_ylabel("Counts")
+        self.app.subplot.scatter(graph.x_axis, copied_analyzed_row, s = 1)
+
         try:
             FSR = float(self.app.FSR_entry.displayText())
             SD = float(self.app.SD_entry.displayText())
@@ -281,20 +281,17 @@ class EMCCDthread(QtCore.QThread):
                 delta_peaks = x0_2 - x0_1
                 BS = (FSR - delta_peaks*SD)/2
                 length_bs = len(self.brillouin_shift_list)
-                if length_bs >= 25:
-                    self.brillouin_shift_list = []
+
                 self.brillouin_shift_list.append(BS)
+                if length_bs >= 20:
+                    self.brillouin_shift_list = self.brillouin_shift_list[1:]
                 length_bs +=1
 
-                """
                 if gamma_1 is not None and gamma_2 is not None:
-                    print "gamma1 and gamma2 is not None"
                     popt, pcov = curve_fit(lorentzian, self.graph.x_axis, copied_analyzed_row, p0 = np.array([gamma_1, x0_1, constant_1, gamma_2, x0_2, constant_2, 100]))
+                
+                    self.app.subplot.plot(self.app.graph.x_axis, lorentzian(self.app.graph.x_axis, *popt), 'r-', label='fit')
 
-                    curve_data = (popt,pcov)
-                    print "params: ",curve_data
-                    self.emit(QtCore.SIGNAL('draw_curve(PyQt_PyObject'),curve_data)
-                """
             else:
                 constant_1 = np.amax(copied_analyzed_row[:20])
                 constant_2 = np.amax(copied_analyzed_row[20:40])
@@ -308,15 +305,16 @@ class EMCCDthread(QtCore.QThread):
                 x0_3 = np.argmax(copied_analyzed_row[40:60])+40
                 x0_4 = np.argmax(copied_analyzed_row[60:])+60
 
-
+                temp = 23.5
+                plastic_BS = self.get_plastic_BS(temp)
+                water_BS = self.get_water_BS(temp)
 
                 popt, pcov = curve_fit(lorentzian_reference, self.graph.x_axis, copied_analyzed_row, p0 = np.array([1, x0_1, constant_1, 1, x0_2, constant_2, 1, x0_3, constant_3, 1, x0_4, constant_4, constant_5]))
 
-                measured_SD = (2*self.PlasticBS - 2*self.WaterBS) / ((x0_4 - x0_1) + (x0_3 - x0_2))
-                measured_FSR = 2*self.PlasticBS - measured_SD*(x0_3 - x0_2)
-                
-                curve_data = (popt,pcov,measured_SD,measured_FSR)
-                self.emit(QtCore.SIGNAL('draw_curve(PyQt_PyObject'),curve_data)
+                self.app.subplot.plot(self.app.graph.x_axis, lorentzian_reference(self.app.graph.x_axis, *popt), 'r-', label='fit')
+
+                measured_SD = (2*plastic_BS - 2*water_BS) / ((x0_4 - x0_1) + (x0_3 - x0_2))
+                measured_FSR = 2*plastic_BS - measured_SD*(x0_3 - x0_2)
 
                 self.app.SD_entry.setText(str(measured_SD))
                 self.app.FSR_entry.setText(str(measured_FSR))
@@ -325,8 +323,14 @@ class EMCCDthread(QtCore.QThread):
             traceback.print_exc()
             pass
 
-        graph_data = (copied_analyzed_row.copy(),self.brillouin_shift_list[:])
-        self.emit(QtCore.SIGNAL('update_graph_panel(PyQt_PyObject)'),graph_data)
+        self.app.brillouin_plot = graph.fig.add_subplot(212)
+        self.app.brillouin_plot.set_xlabel("Brillouin Shift Frequency (GHz)")
+        self.app.brillouin_plot.set_ylabel("Points")
+        self.app.brillouin_plot.set_ylim(bottom=4.0,top=7.0)
+        
+        self.app.brillouin_plot.scatter(np.arange(1, len(self.brillouin_shift_list)+1), np.array(self.brillouin_shift_list))
+
+        self.app.graph_panel.canvas.draw()
 
 
 class Graph(object):
@@ -337,7 +341,7 @@ class Graph(object):
 
 class HeatMapGraph:
     def __init__(self,resolution,depth):
-        self.fig = Figure(figsize = (10,10), dpi = 90)
+        self.fig = Figure(figsize = (10,10), dpi = 80)
         self.ax = None
         self.res = None
         self.depth = depth

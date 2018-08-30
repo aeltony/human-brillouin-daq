@@ -15,14 +15,14 @@ from PIL import Image
 from PIL import ImageTk
 import hough_transform as ht
 import skvideo.io as skv
-import h5py
+#import h5py
 
 import CMOSthread
 import EMCCDthread
 
 # UI import
 import qt_ui
-
+import h5py
 # device imports
 
 import device_init
@@ -99,8 +99,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
         self.EMCCDthread = EMCCDthread.EMCCDthread(self)
         self.connect(self.EMCCDthread,QtCore.SIGNAL('update_EMCCD_panel(PyQt_PyObject)'),self.update_EMCCD_panel)
-        self.connect(self.EMCCDthread,QtCore.SIGNAL('update_graph_panel(PyQt_PyObject)'),self.update_graph_panel)
-        self.connect(self.EMCCDthread,QtCore.SIGNAL('draw_curve(PyQt_PyObject)'),self.draw_curve)
+        print "return value 1: ",self.connect(self.EMCCDthread,QtCore.SIGNAL('update_graph_panel(PyQt_PyObject)'),self.update_graph_panel)
+        print "return value 2: ",self.connect(self.EMCCDthread,QtCore.SIGNAL('draw_curve(PyQt_PyObject)'),self.draw_curve)
         self.connect(self.EMCCDthread,QtCore.SIGNAL('update_heatmap_panel(PyQt_PyObject)'),self.update_heatmap_panel)
 
         ### CMOS AND EMCCD PANEL ###
@@ -147,8 +147,6 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.scanned_loc_table.resizeColumnsToContents()
         self.scanned_loc_table.horizontalHeader().setStretchLastSection(True)
 
-        #self.slider.valueChanged.connect(self.change_heatmap_depth)
-
         self.delete_btn.clicked.connect(self.delete_entries)
         self.clear_btn.clicked.connect(self.clear_table)
 
@@ -175,6 +173,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.backward_btn.clicked.connect(lambda: self.move_motor_rel(-float(self.distance_entry.displayText())))
         self.position_btn.clicked.connect(lambda: self.move_motor_abs(float(self.location_entry.displayText())))
 
+        self.apply_vel_acc_btn.clicked.connect(self.apply_changes)
+
         #############################
         ### DATA COLLECTION PANEL ###
         #############################
@@ -183,9 +183,12 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.scan_btn.clicked.connect(lambda: self.EMCCDthread.scan(float(self.start_pos.displayText()),float(self.scan_length.displayText()),int(self.num_frames.displayText())))
         self.export_btn.clicked.connect(self.export_scans)
 
-        #######################################
-        ### VELOCITY AND ACCELERATION PANEL ###
-        #######################################
+        ###################
+        ### EMCCD PANEL ###
+        ###################
+
+        self.get_temp_entry.setText(str(self.andor.cam.temperature))
+        self.emccd_apply_btn.clicked.connect(self.apply_emccd_changes)
 
         print "finished showing"
 
@@ -232,34 +235,39 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.subplot.set_ylabel("Counts")
 
         self.brillouin_plot = self.graph.fig.add_subplot(212)
+        self.brillouin_plot.set_xlabel("Brillouin Shift Frequency (GHz)")
+        self.brillouin_plot.set_ylabel("Points")
+        self.brillouin_plot.set_ylim(bottom=4.0,top=7.0)
         
         self.subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
         self.brillouin_plot.scatter(np.arange(1, len(brillouin_shift_list)+1), np.array(brillouin_shift_list))
+
+        self.graph_panel.canvas.draw()
         """
         if self.subplot is None and self.brillouin_plot is None:
             self.graph.fig.clf()
             self.subplot = self.graph.fig.add_subplot(211)
             self.subplot.set_xlabel("Pixel")
             self.subplot.set_ylabel("Counts")
+            self.subplot.autoscale(axis='y')
             self.brillouin_plot = self.graph.fig.add_subplot(212)
+            self.brillouin_plot.set_xlabel("Count")
+            self.brillouin_plot.set_ylabel("Brillouin Frequency Shift")
 
             self.scatter_subplot = self.subplot.scatter(self.graph.x_axis, copied_analyzed_row, s = 1)
-            self.scatter_brillouin_plot = self.brillouin_plot.scatter(np.arange(1, len(brillouin_shift_list)+1), np.array(brillouin_shift_list))
+            self.scatter_brillouin_plot = self.brillouin_plot.scatter(np.arange(1, 21), np.zeros(20), s = 1)
 
-        else:
-            scatter_array = np.zeros((2,len(copied_analyzed_row)))
-            scatter_array[0] = self.graph.x_axis.copy()
-            scatter_array[1] = copied_analyzed_row
-            print scatter_array
-            brillouin_scatter_array = np.zeros((2,len(brillouin_shift_list)))
-            brillouin_scatter_array[0] = np.arange(1,len(brillouin_shift_list)+1)
-            brillouin_scatter_array[1] = np.array(brillouin_shift_list)
-
-            print brillouin_scatter_array
+        if self.subplot is not None:
+            self.subplot.autoscale(axis='y')
+            scatter_array = np.c_[self.graph.x_axis,copied_analyzed_row]
             self.scatter_subplot.set_offsets(scatter_array)
+            
+        if self.brillouin_plot is not None:
+            filled_list = brillouin_shift_list + [0]*(20-len(brillouin_shift_list))
+            brillouin_scatter_array = np.c_[np.arange(1, 21), np.array(filled_list)]
             self.scatter_brillouin_plot.set_offsets(brillouin_scatter_array)
         """
-        self.graph_panel.canvas.draw()
+
 
     def draw_curve(self,curve_data):
         print "curve_data: ", curve_data
@@ -267,6 +275,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             popt, pcov = curve_data
             self.subplot.plot(self.graph.x_axis, EMCCDthread.lorentzian(self.graph.x_axis, *popt), 'r-', label='fit')
         elif len(curve_data) == 4:
+            print "hello???"
             popt, pcov, measured_SD, measured_FSR = curve_data
             self.subplot.plot(self.graph.x_axis, EMCCDthread.lorentzian_reference(self.graph.x_axis, *popt), 'r-', label='fit')
             self.SD_entry.setText(measured_SD)
@@ -391,6 +400,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                 print "spectrograph shape", spectrograph_array.shape
                 spectrograph_dataset = spectrographs.create_dataset(str(ID),spectrograph_array.shape,dtype=np.uint8)
                 spectrograph_dataset[...] = spectrograph_array
+                #spectrograph_dataset.attrs.create('CLASS','IMAGE',dtype=str)
+                #spectrograph_dataset.attrs.create('IMAGE_SUBCLASS','IMAGE_GRAYSCALE',dtype=str)
 
 
 
@@ -432,10 +443,26 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         loc = self.motor.device.send(60, 0)
         self.location_entry.setText(str(loc.data*0.047625))
 
-    def set_velocity(self, velocity):
-        data = velocity/(9.375*(0.047625/1000))
-        self.motor.device.send(42,data)
+    def apply_changes(self):
 
+        velocity = self.velocity_entry.displayText()
+        acceleration = self.acceleration_entry.displayText()
+
+        if velocity == "":
+            acceleration_data = float(acceleration)/((0.047625/1000)*11250)
+            self.motor.device.send(43,acceleration_data)
+        if acceleration == "":
+            velocity_data = float(velocity)/(9.375*(0.047625/1000))
+            self.motor.device.send(42,velocity_data)
+
+
+    def apply_emccd_changes(self):
+        temp = int(self.set_temp_entry.displayText())
+        self.andor.cam.SetTemperature(temp)
+        self.andor.cam.GetTemperature()
+        self.get_temp_entry.setText(str(self.andor.cam.temperature))
+        exp = float(self.exposure_time_entry.displayText())
+        self.andor.cam.SetExposureTime(exp)
 
     def restore_default_params(self):
         self.dp_entry.setText("3.0")

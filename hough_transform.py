@@ -130,7 +130,7 @@ def detect_pupil_frame(frame,medianBlur,dp,minDist,param1,param2,radius_range,ex
 
     if ROI_center is not None and min_circle_center is not None:
         min_circle_center = (min_circle_center[0]+min_x,min_circle_center[1]+min_y)
-
+        
     return (frame_bgr,min_circle_center,min_circle_radius)
 
 
