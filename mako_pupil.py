@@ -9,7 +9,7 @@ import time
 Uses pymba which is a Python wrapper for Allied Vision Vimba C API. 
 Located at https://github.com/morefigs/pymba, which has a simple example.
 Vimba C API documentation is located locally at
-C:\Program Files\Allied Vision\Vimba_2.1\VimbaC\Documentation
+C:\\Program Files\\Allied Vision\\Vimba_2.1\\VimbaC\\Documentation
 
 """
 
