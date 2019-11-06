@@ -227,7 +227,7 @@ class AndorProcessFreerun(BrillouinDevice.DeviceProcess):
             interpolation = cv2.INTER_NEAREST)
 
         #### Fitting Brillouin spectrum
-        interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(sline_crop),1e-4,1e-4)
+        interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(sline_crop),1e-4,1e-4,50)
 
         # emit signals for GUI to update in real time
         self.updateBrillouinSeqSig.emit(interPeakDist)

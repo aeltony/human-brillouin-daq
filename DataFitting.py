@@ -10,10 +10,10 @@ from scipy.ndimage.filters import gaussian_filter
 #### Fit Brillouin spectrum,
 # sline is the data (counts) for the pixels on the spectral line,
 # ftol and xtol are fitting tolerances (adjust for speed vs. accuracy)
-def fitSpectrum(sline, xtol=1e-6, ftol=1e-6):
+def fitSpectrum(sline, xtol=1e-6, ftol=1e-6, maxfev=500):
 	weights = np.sqrt(sline)  # Weight data by SNR
 
-	prominence = 0.5*np.amax(sline)
+	prominence = 0.4*np.amax(sline)
 	# Find # of peaks
 	peaks, pk_info = find_peaks(sline, prominence=prominence, width=2, height=100, rel_height=0.5)
 	pk_wids = 0.5*pk_info['widths']
@@ -55,7 +55,7 @@ def fitSpectrum(sline, xtol=1e-6, ftol=1e-6):
 		init = model.eval(pars,x=px)
 		
 		try:
-			out = model.fit(sline, pars, x=px, weights=weights, fit_kws={'ftol':ftol,'xtol':xtol})
+			out = model.fit(sline, pars, x=px, weights=weights, fit_kws={'ftol':ftol,'xtol':xtol,'maxfev':maxfev})
 			# print(out.fit_report(min_correl=0.5))
 			fittedSpect = model.eval(out.params,x=px)
 
