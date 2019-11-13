@@ -64,9 +64,6 @@ class MakoDevice(BrillouinDevice.Device):
         # cameraFeatureNames = self.camera.getFeatureNames()
         # for name in cameraFeatureNames:
         #     print('Camera feature:', name)
-        # print self.camera.ImageSize
-        # print "height max = ", self.camera.HeightMax
-        # print "width max = ", self.camera.WidthMax
 
         self.camera.AcquisitionMode = 'Continuous'
         #print "Frame rate limit: "
