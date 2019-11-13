@@ -24,12 +24,13 @@ class ScanManager(QtCore.QThread):
 	clearGUISig = pyqtSignal()
 
 	#TODO: add a pause event
-	def __init__(self, stop_event, motor, shutter):
+	def __init__(self, cancel_event, stop_event, motor, shutter):
 		super(ScanManager,self).__init__()
         # TODO: change to dictionary
 		self.sequentialAcqList = []
 		self.sequentialProcessingList = []
 		self.freerunningList = []
+		self.cancel_event = cancel_event
 		self.stop_event = stop_event
 		self.motor = motor
 		self.shutter = shutter
@@ -131,25 +132,26 @@ class ScanManager(QtCore.QThread):
 		# startTime = timer()
 
 		for k in range(self.scanSettings['frames']):
-			
-			
+			# Check if "Cancel" button pressed:
+			# print 'self.cancel_event =', self.cancel_event.is_set()
+			if self.cancel_event.is_set():
+				# If scan cancelled, skip to calibration data (wrap-up scan)
+				break
+			else:
+				self.motor.setMotorAsync('moveRelative', [self.scanSettings['step']])
 
-			self.motor.setMotorAsync('moveRelative', [self.scanSettings['step']])
-			
-			# loopStartTime = timer() 
+				# Signal all devices to start new acquisition
+				for dev in self.sequentialAcqList:
+					dev.continueEvent.set()
 
-			# Signal all devices to start new acquisition
-			for dev in self.sequentialAcqList:
-				dev.continueEvent.set()
+				# Send motor position signal to update GUI
+				motorPos = self.motor.getCurrentPosition()
+				self.motorPosUpdateSig.emit(motorPos)
 
-			# Send motor position signal to update GUI
-			motorPos = self.motor.getCurrentPosition()
-			self.motorPosUpdateSig.emit(motorPos)
-
-			# synchronization... wait for all the device threads to complete
-			for dev in self.sequentialAcqList:
-				dev.completeEvent.wait()
-				dev.completeEvent.clear()
+				# synchronization... wait for all the device threads to complete
+				for dev in self.sequentialAcqList:
+					dev.completeEvent.wait()
+					dev.completeEvent.clear()
 
 		# take calibration data
 		self.shutter.setShutterState((0, 1)) # switch to reference arm

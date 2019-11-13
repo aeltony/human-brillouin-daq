@@ -329,15 +329,15 @@ class ScanData:
 			if hasattr(self, data):
 				# first check if file already has this dataset
 				datasetName = datasetPath + data
-				print 'Saving scan: ' + datasetName
+				# print 'Saving scan: ' + datasetName
 				if datasetName in fHandle:	# delete if already exist
 					del fHandle[datasetName]
 				if hasattr(self.__dict__[data], '__len__') and (not isinstance(self.__dict__[data], str)):
-					print 'Compressing data:' + datasetName
+					# print 'Compressing data:' + datasetName
 					fHandle.create_dataset(datasetName, data=self.__dict__[data], chunks=True, \
 						shuffle=True, compression='gzip', compression_opts=9)
 				else:
-					print 'Not compressing data:' + datasetName
+					# print 'Not compressing data:' + datasetName
 					fHandle.create_dataset(datasetName, data=self.__dict__[data])
 
 		gp = fHandle[datasetPath]

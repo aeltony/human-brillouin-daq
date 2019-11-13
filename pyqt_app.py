@@ -81,7 +81,9 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                 {'name': 'Ref FSR', 'type': 'float', 'value':16.25, 'suffix':' GHz', 'limits':(5, 100), 'decimals':6}, 
                 {'name': 'Ref SD', 'type': 'float', 'value':0.1, 'suffix':' GHz/px', 'limits':(0, 2), 'decimals':4}, 
                 {'name': 'ToggleReference', 'type':'toggle', 'ButtonText':('Switch to Reference', 'Switch to Sample')},         #False=Sampe="Switch to Ref"
-                {'name': 'Scan', 'type':'action'},
+                {'name': 'Scan/Cancel', 'type': 'action2', 'ButtonText':('Scan', 'Cancel')},
+                # {'name': 'Scan', 'type':'action'},
+                # {'name': 'Pause', 'type':'action'},
                 {'name': 'More Settings', 'type': 'group', 'children': [
                     {'name': 'Laser Focus X', 'type': 'int', 'value': laserX, 'suffix':' px', 'limits':(1,2048),'decimals':4},
                     {'name': 'Laser Focus Y', 'type': 'int', 'value': laserY, 'suffix':' px', 'limits':(1,2048),'decimals':4}
@@ -149,13 +151,13 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
         #Lock used to halt other threads upon app closing
         self.stop_event = threading.Event()
+        self.cancel_event = threading.Event()
         self.andor_lock = threading.Lock()
         self.mako_lock = threading.Lock()
         self.TempSensor_lock = threading.Lock()
         self.ZaberLock = threading.Lock()
         self.scan_lock = threading.Lock()
         self.map_lock = threading.Lock()
-
 
         # Even though ZaberDevice is a QThread, for now we don't need to run it in a separate thread
         # It is implemented this way for future-proofing
@@ -185,7 +187,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.graphicsViewCMOS.setCentralItem(self.CMOSview)     # GraphicsView is the main graphics container
         self.CMOSview.setAspectLocked(True)
         self.CMOSScatter = pg.ScatterPlotItem(size=10, pen=pg.mkPen(None), brush=pg.mkBrush(color='r'))
-        self.CMOSImage = pg.ImageItem(np.zeros((self.MakoDeviceThread.imageWidth, self.MakoDeviceThread.imageHeight)))      # ImageItem contains what needs to be plotted
+        self.CMOSImage = pg.ImageItem(np.zeros((self.MakoDeviceThread.imageWidth//self.MakoDeviceThread.bin_size, self.MakoDeviceThread.imageHeight//self.MakoDeviceThread.bin_size)))      # ImageItem contains what needs to be plotted
         self.CMOSview.addItem(self.CMOSImage)
         self.CMOSview.autoRange(padding=0)                      # gets rid of padding
         self.CMOSvLine = pg.InfiniteLine(angle=90, movable=False)
@@ -201,7 +203,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.graphicsViewCMOSViewer.setCentralItem(self.CMOSview_recording)     # GraphicsView is the main graphics container
         self.CMOSview_recording.setAspectLocked(True)
         self.CMOSScatter_recording = pg.ScatterPlotItem(size=10, pen=pg.mkPen(None), brush=pg.mkBrush(color='r'))
-        self.CMOSImage_recording = pg.ImageItem(np.zeros((self.MakoDeviceThread.imageWidth, self.MakoDeviceThread.imageHeight)))      # ImageItem contains what needs to be plotted
+        self.CMOSImage_recording = pg.ImageItem(np.zeros((self.MakoDeviceThread.imageWidth//self.MakoDeviceThread.bin_size, self.MakoDeviceThread.imageHeight//self.MakoDeviceThread.bin_size)))      # ImageItem contains what needs to be plotted
         self.CMOSview_recording.addItem(self.CMOSImage_recording)
         self.CMOSview_recording.addItem(self.CMOSScatter_recording)
         self.CMOSview_recording.autoRange(padding=0)  # gets rid of padding
@@ -412,7 +414,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.AndorProcessThread.updateBrillouinSeqSig.connect(self.UpdateBrillouinSeqPlot)
         self.AndorProcessThread.updateSpectrum.connect(self.UpdateSpectrum)
 
-        self.BrillouinScan = ScanManager(self.stop_event, self.ZaberDevice, self.ShutterDevice)
+        self.BrillouinScan = ScanManager(self.cancel_event, self.stop_event, self.ZaberDevice, self.ShutterDevice)
         self.BrillouinScan.addToSequentialList(self.AndorDeviceThread, self.AndorProcessThread)
         self.BrillouinScan.addToSequentialList(self.MakoDeviceThread, self.MakoProcessThread)
         self.BrillouinScan.addToSequentialList(self.TempSensorDeviceThread, self.TempSensorProcessThread)
@@ -507,7 +509,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         frameNum = pItem.child('Frame number').value()
         endPos = startPos + stepSize * frameNum
         pItem.child('End Position').setValue(endPos)
-        pItem.child('Scan').sigActivated.connect(self.startScan)
+        pItem.child('Scan/Cancel').sigActivated.connect(self.startScan)
+        pItem.child('Scan/Cancel').sigActivated2.connect(self.cancelScan)
         pItem.child('Start Position').sigValueChanging.connect(lambda param, value: self.updateScanEndPos(0, param, value))
         pItem.child('Step size').sigValueChanging.connect(lambda param, value: self.updateScanEndPos(1, param, value))
         pItem.child('Frame number').sigValueChanging.connect(lambda param, value: self.updateScanEndPos(2, param, value))
@@ -619,6 +622,10 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         # Finally start scan in a new thread
         self.BrillouinScan.start()
 
+    def cancelScan(self):
+        print 'Stopping current scan and wrapping-up.'
+        self.cancel_event.set()
+
     def onFinishScan(self):
         self.maxScanPoints = 400 # Re-scale plot window for free-running mode
         if (self.allParameters.child('Scan').child('ToggleReference').value() == True):
@@ -639,6 +646,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.BrillouinScan.motorPosUpdateSig.disconnect(self.MotorPositionUpdate2)
         self.hardwareGetTimer.start(10000)
         self.motorPositionTimer.start(500)
+        self.cancel_event.clear()
         print 'Scan completed'
 
     def toggleReference(self, sliderParam, state):

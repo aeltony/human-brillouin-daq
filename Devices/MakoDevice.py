@@ -34,6 +34,7 @@ class MakoDevice(BrillouinDevice.Device):
 
         self.imageHeight = 1000
         self.imageWidth = 1000
+        self.bin_size = 2
         self.camera.Height = self.imageHeight # max: 2048
         self.camera.Width = self.imageWidth # max: 2048
         self.camera.OffsetX = 320
@@ -94,6 +95,8 @@ class MakoDevice(BrillouinDevice.Device):
             image_arr = np.ndarray(buffer = imgData,
                            dtype = np.uint8,
                            shape = (self.frame.height,self.frame.width))
+            image_arr = image_arr.reshape((self.frame.height//self.bin_size, self.bin_size, \
+                self.frame.width//self.bin_size, self.bin_size)).max(3).max(1)
         # print "[MakoDevice] frame acquired, queue = %d" % self.dataQueue.qsize()
         return image_arr
 
