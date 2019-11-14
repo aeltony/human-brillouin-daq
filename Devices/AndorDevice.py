@@ -63,15 +63,16 @@ class AndorDevice(BrillouinDevice.Device):
     # getData() acquires an image from Andor
     def getData(self):
         if self.autoExp:
-            data = self.getData2()
+            (im_arr, expTime) = self.getData2()
         else:
             with self.andor_lock:
                 self.cam.StartAcquisition()
                 self.cam.GetAcquiredData2(self.imageBufferPointer)
+            expTime = self.getExposure()
             imageSize = self.cam.GetAcquiredDataDim()
             # return a copy of the data, since the buffer is reused for next frame
-            data = np.array(self.imageBuffer[0:imageSize], copy=True, dtype = np.uint16)
-        return data
+            im_arr = np.array(self.imageBuffer[0:imageSize], copy=True, dtype = np.uint16)
+        return (im_arr, expTime)
 
 
     def getData2(self):
@@ -96,7 +97,8 @@ class AndorDevice(BrillouinDevice.Device):
             self.cam.GetAcquiredData2(self.imageBufferPointer)
         imageSize = self.cam.GetAcquiredDataDim()
         # return a copy of the data, since the buffer is reused for next frame
-        return np.array(self.imageBuffer[0:imageSize], copy=True, dtype = np.uint16)
+        im_arr = np.array(self.imageBuffer[0:imageSize], copy=True, dtype = np.uint16)
+        return (im_arr, adjustedExpTime)
 
 
     def getAndorSetting(self, functionHandle, attribute):
@@ -195,7 +197,9 @@ class AndorProcessFreerun(BrillouinDevice.DeviceProcess):
 
     # data is an numpy array of type int32
     def doComputation(self, data):
-        image_array = data # np.array(data, dtype = np.uint16)
+        image_array = data[0] # np.array(data, dtype = np.uint16)
+        exp_time = data[1]
+        print 'exp_time = ', exp_time
 
         maximum = image_array.max()
         proper_image = np.reshape(image_array, (-1, 512))   # 512 columns, 128 rows (4x1 binning)
@@ -227,7 +231,7 @@ class AndorProcessFreerun(BrillouinDevice.DeviceProcess):
             interpolation = cv2.INTER_NEAREST)
 
         #### Fitting Brillouin spectrum
-        interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(sline_crop),1e-4,1e-4,50)
+        interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(sline_crop.astype(float)),1e-4,1e-4,50)
 
         # emit signals for GUI to update in real time
         self.updateBrillouinSeqSig.emit(interPeakDist)
@@ -236,4 +240,4 @@ class AndorProcessFreerun(BrillouinDevice.DeviceProcess):
 
         # return value is pushed into a Queue, which is collected by the ScanManager
         # for global processing (i.e. Brillouin value segmentation)
-        return (proper_image, sline_crop, image)
+        return (proper_image, sline_crop, image, exp_time)

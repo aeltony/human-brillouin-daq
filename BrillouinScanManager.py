@@ -214,6 +214,10 @@ class ScanManager(QtCore.QThread):
 		dispImageList = [d[2] for d in dataset['Andor']]
 		EMCCDDisplay = np.array(dispImageList)
 
+		expTimeList = [d[3] for d in dataset['Andor']]
+		RawTimeList = np.array(expTimeList)[:-5]
+		CalTimeList = np.array(expTimeList)[-5:]
+
 		# Save data
 		# lineScan = ScanData()
 		lineScan = ScanData(timestamp=datetime.now().strftime('%H:%M:%S'))
@@ -227,6 +231,8 @@ class ScanManager(QtCore.QThread):
 		lineScan.RawSpecList = RawSpecList
 		lineScan.CalSpecList = CalSpecList
 		lineScan.EMCCDDisplay = EMCCDDisplay
+		lineScan.RawTimeList = RawTimeList
+		lineScan.CalTimeList = CalTimeList
 		lineScan.screenshot = self.scanSettings['screenshot']
 		lineScan.flattenedParamList = self.scanSettings['flattenedParamList']	#save all GUI paramaters
 
@@ -252,7 +258,7 @@ class ScanManager(QtCore.QThread):
 		SD = np.array([])
 		FSR = np.array([])
 		for j in range(CalSpecList.shape[0]):
-			interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(CalSpecList[j]),1e-7,1e-7)
+			interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(CalSpecList[j])//CalTimeList[j],1e-7,1e-7)
 			if len(interPeakDist)==3:
 				T = CalTempList[j]
 				WaterBS = waterConst[0]*T*T + waterConst[1]*T + waterConst[2]
@@ -289,7 +295,7 @@ class ScanManager(QtCore.QThread):
 		fittedSpect = np.zeros(RawSpecList.shape)
 
 		for j in range(RawSpecList.shape[0]):
-			interPeakDist, fittedSpect[j] = DataFitting.fitSpectrum(np.copy(RawSpecList[j]),1e-7,1e-7)
+			interPeakDist, fittedSpect[j] = DataFitting.fitSpectrum(np.copy(RawSpecList[j])//RawTimeList[j],1e-7,1e-7)
 			if len(interPeakDist)==2:
 				aline[j] = 0.5*(FSRcal - SDcal*interPeakDist[1])
 				signal[j] = interPeakDist[0]

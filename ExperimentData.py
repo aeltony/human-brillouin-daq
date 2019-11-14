@@ -281,6 +281,8 @@ class ScanData:
 					'RawSpecList',
 					'FitSpecList',
 					'CalSpecList',
+					'RawTimeList',
+					'CalTimeList',
 					'StromaIdx',
 					'PupilDetectorCenters',	# 2 x len(scan) array containing x and y coord from pupil detector. (-1, -1) means not detected
 					'MeanPupilCenters',
