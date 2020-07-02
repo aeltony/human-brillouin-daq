@@ -9,8 +9,8 @@ import ntpath
 from scipy import interpolate
 from scipy.interpolate import griddata
 import csv
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import QTimer
+from PyQt5 import QtGui, QtCore
+from PyQt5.QtCore import QTimer
 import pyqtgraph as pg
 import pyqtgraph.parametertree.parameterTypes as pTypes
 from pyqtgraph.parametertree import Parameter, ParameterTree, ParameterItem, registerParameterType
@@ -101,8 +101,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             {'name': 'EMCCD', 'type': 'group', 'children': [
                 {'name': 'AutoExposure', 'type':'toggle', 'ButtonText':('Auto exposure', 'Fixed exposure')},         #False=Fixed exposure
                 {'name': 'Desired Temperature', 'type': 'float', 'value': -120, 'suffix':' C', 'step': 1, 'limits': (-120, 30)},
-                {'name': 'Current Temperature', 'type': 'float', 'value':0, 'suffix':' C', 'readonly': True}, 
-                {'name': 'EM Gain', 'type': 'int', 'value': 300, 'limits':(1, 500)},
+                {'name': 'Current Temperature', 'type': 'float', 'value':0, 'suffix':' C', 'readonly': True},
                 {'name': 'Exposure', 'type':'float', 'value':0.3, 'suffix':' s', 'step':0.05, 'limits':(0.01, 10)},
                 {'name': 'Ref. Exposure', 'type':'float', 'value':1.0, 'suffix':' s', 'step':0.05, 'limits':(0.01, 10)},
                 {'name': 'Spectrum Column', 'type':'int', 'value': spectCenter, 'suffix':' px', 'step':1, 'limits':(0, 512)},
@@ -430,21 +429,21 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         return (circleX, circleY)
 
     def CMOShLineValueChange(self, param, value):
-        # print "[CMOShLineValueChange]"
+        # print("[CMOShLineValueChange]")
         self.CMOShLine.setPos(value)
         self.configParser.set('Scan', 'laser_position_Y', str(int(value)))
         with open(self.configFilename, 'w') as f:
             self.configParser.write(f)
 
     def CMOSvLineValueChange(self, param, value):
-        # print "[CMOSvLineValueChange]"
+        # print("[CMOSvLineValueChange]")
         self.CMOSvLine.setPos(value)
         self.configParser.set('Scan', 'laser_position_X', str(int(value)))
         with open(self.configFilename, 'w') as f:
             self.configParser.write(f)
 
     def spectCenterValueChange(self, param, value):
-        # print "[spectCenterValueChange]"
+        # print("[spectCenterValueChange]")
         self.AndorProcessThread.spectCenter = self.allParameters.child('EMCCD').child('Spectrum Column').value()
         self.configParser.set('Andor', 'spectCenter', str(int(value)))
         with open(self.configFilename, 'w') as f:
@@ -457,7 +456,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             self.configParser.write(f)
 
     def pupilRadiusValueChange(self, param, value):
-        # print "[pupilRadiusValueChange]"
+        # print("[pupilRadiusValueChange]")
         self.MakoProcessThread.pupilRadius = self.allParameters.child('Pupil Camera').child('Pupil Radius').value()
         self.configParser.set('Mako', 'pupilRadius', str(float(value)))
         with open(self.configFilename, 'w') as f:
@@ -467,7 +466,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
     # This next group of methods are used to set/get hardware settings, using the parameterTree #
     #############################################################################################
     def InitHardwareParameterTree(self):
-        # print "[InitHardwareParameterTree]"
+        # print("[InitHardwareParameterTree]")
 
         # ========================= EMCCD ================================
         pItem = self.allParameters.child('EMCCD')
@@ -475,9 +474,6 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         pItem.child('Desired Temperature').sigValueChanged. \
             connect(lambda data: self.changeHardwareSetting(data, self.AndorDeviceThread.setTemperature))
         pItem.child('Current Temperature').setValue(self.AndorDeviceThread.getTemperature())
-        pItem.child('EM Gain').setValue(self.AndorDeviceThread.getEMCCDGain())
-        pItem.child('EM Gain').sigValueChanged.connect(
-            lambda data: self.changeHardwareSetting(data, self.AndorDeviceThread.setEMCCDGain))
         pItem.child('Exposure').sigValueChanged.connect(
             lambda data: self.changeHardwareSetting(data, self.AndorDeviceThread.setExposure))
         pItem.child('Exposure').setValue(self.AndorDeviceThread.getExposure())
@@ -531,11 +527,11 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.motorPositionTimer.start(500)
 
     def changeHardwareSetting(self, data, funcHandle):
-        # print "[changeHardwareSetting]"
+        # print("[changeHardwareSetting]")
         funcHandle(data.value())
 
     def HardwareParamUpdate(self):
-        # print "[HardwareParamUpdate]"
+        # print("[HardwareParamUpdate]")
         temp = self.AndorDeviceThread.getTemperature()
         self.allParameters.child('EMCCD').child('Current Temperature').setValue(temp)
         # if (self.ShutterDevice.state == ShutterDevice.SAMPLE_STATE):
@@ -543,7 +539,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             # self.allParameters.child('EMCCD').child('Exposure').setValue(expTime)
 
     def updateScanEndPos(self, updateIndex, param, value):
-        # print "[updateScanEndPos]"
+        # print("[updateScanEndPos]")
         pItem = self.allParameters.child('Scan')
         startPos = pItem.child('Start Position').value()
         stepSize = pItem.child('Step size').value()
@@ -559,17 +555,17 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
     @QtCore.pyqtSlot(float)
     def MotorPositionUpdate2(self, pos):
-        # print "[MotorPositionUpdate2]"
+        # print("[MotorPositionUpdate2]")
         self.allParameters.child('Motor').child('Current Location').setValue(pos)
 
     def MotorPositionUpdate(self):
-        # print "[MotorPositionUpdate]"
+        # print("[MotorPositionUpdate]")
         pos = self.ZaberDevice.getCurrentPosition()
         self.allParameters.child('Motor').child('Current Location').setValue(pos)
 
     @QtCore.pyqtSlot()
     def clearGUIElements(self):
-        # print "[clearGUIElements]"
+        # print("[clearGUIElements]")
         self.specSeriesData = np.zeros((self.maxScanPoints, 512))
         self.specSeriesSize = 0
         self.scanDepthData = np.array([])
@@ -583,7 +579,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                                                 QtGui.QMessageBox.Ok)
             return
 
-        print "Starting a scan in Exp_%d: " % self.model.activeExperiment
+        print("Starting a scan in Exp_%d: " % self.model.activeExperiment)
 
         # take screenshot
         p = QtGui.QPixmap.grabWindow(self.winId())
@@ -623,7 +619,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.BrillouinScan.start()
 
     def cancelScan(self):
-        print 'Stopping current scan and wrapping-up.'
+        print('Stopping current scan and wrapping-up.')
         self.cancel_event.set()
 
     def onFinishScan(self):
@@ -647,10 +643,10 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.hardwareGetTimer.start(10000)
         self.motorPositionTimer.start(500)
         self.cancel_event.clear()
-        print 'Scan completed'
+        print('Scan completed')
 
     def toggleReference(self, sliderParam, state):
-        # print "[toggleReference]"
+        # print("[toggleReference]")
         # state == True --> Reference
         # state == False --> sample
         if state:
@@ -663,11 +659,11 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
     def switchAutoExp(self, sliderParam, state):
         if state:
             self.AndorDeviceThread.setAutoExp(True)
-            print "EMCCD auto exposure ON"
+            print("EMCCD auto exposure ON")
         else:
             self.AndorDeviceThread.setAutoExp(False)
             self.AndorDeviceThread.setExposure(self.allParameters.child('EMCCD').child('Exposure').value())
-            print "EMCCD auto exposure OFF"
+            print("EMCCD auto exposure OFF")
             # self.AndorDeviceThread.setExposure(self.allParameters.child('EMCCD').child('Exposure').value())
 
     #############################################################################################
@@ -675,7 +671,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
     #############################################################################################
 
     def updateHeatmapByExp(self, expIdx):
-        # print "[updateHeatmapByExp]"
+        # print("[updateHeatmapByExp]")
         currExp = self.session.experimentList[expIdx]
         laserCoords = np.array([np.float(self.allParameters.child('Scan').child('More Settings').child('Laser Focus X').value()), \
             np.float(self.allParameters.child('Scan').child('More Settings').child('Laser Focus Y').value())])
@@ -686,7 +682,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.updateHeatmap(coords, BS, activeScanIdx, expIdx)
 
     def updateHeatmapBySelection(self, idx):
-        # print "[updateHeatmapBySelection]"
+        # print("[updateHeatmapBySelection]")
         if self.dataViewerTab.currentIndex() == 0:  #acq tab
             lastClicked = self.heatmapScatterLastClicked
             heatmapScatter = self.heatmapScatter
@@ -702,7 +698,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         scanIdx = item.row()
 
         for p in heatmapScatter.points():
-            print p.data()
+            print(p.data())
 
         # if desired selection is already highlighted, then do nothing
         if len(lastClicked)==1:     
@@ -718,7 +714,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         #for p in heatmapScatter.points():
 
         # iterate through all scatter points until the desired one is found 
-        # print "expIdx = %d, scanIdx = %d" % (expIdx, scanIdx)
+        # print("expIdx = %d, scanIdx = %d" % (expIdx, scanIdx))
         p = None
         for p1 in heatmapScatter.points():
             if p1.data()[0] == expIdx and p1.data()[1] == scanIdx:
@@ -728,13 +724,13 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             return
 
         # highlight the found point
-        # print "pen found"
+        # print("pen found")
         p.setPen('w', width=2)
         lastClicked[:] = [p]    # only allow single selection   
 
 
     def updateHeatmap(self, scanPoints, BS, activeScanIndices, expIndex):
-        # print "[updateHeatmap]"
+        # print("[updateHeatmap]")
         if self.dataViewerTab.currentIndex() == 0:  #acq tab
             lastClicked = self.heatmapScatterLastClicked
             heatmapImage = self.heatmapImage
@@ -756,7 +752,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                 gridImage = griddata((scanPointsX, scanPointsY), scanPointsZ, (self.gridx, self.gridy), \
                     fill_value=0, method='cubic')
             except:
-                print '[updateHeatmap] Could not generate heatmap'
+                print('[updateHeatmap] Could not generate heatmap')
                 gridImage = self.blankHeatmap
         else:
             gridImage = self.blankHeatmap
@@ -777,7 +773,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             self.updateHeatmapBySelection(lastSelected)
         
     def heatmapScatterplotClicked(self, plot, points):
-        # print "[heatmapScatterplotClicked]"
+        # print("[heatmapScatterplotClicked]")
         if self.dataViewerTab.currentIndex() == 0:  #acq tab
             lastClicked = self.heatmapScatterLastClicked
         else:   #viewer tab
@@ -802,12 +798,12 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             lastClicked[:] = []
 
     def UpdateRefTemp(self, temperature):
-        # print 'UpdateRefTemp'
+        # print('UpdateRefTemp')
         self.allParameters.child('Scan').child('Ref temperature').setValue(temperature)
 
     # updates the figure containing the Brillouin sequence. newData is a list
     def UpdateBrillouinSeqPlot(self, interPeakDist):
-        # print "[UpdateBrillouinSeqPlot]"
+        # print("[UpdateBrillouinSeqPlot]")
         SD = self.allParameters.child('Scan').child('Ref SD').value()
         FSR = self.allParameters.child('Scan').child('Ref FSR').value()
         T = self.allParameters.child('Scan').child('Ref temperature').value()
@@ -818,7 +814,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         elif len(interPeakDist)==3:
             ## CALIBRATION if reference arm open and signal counts in optimal range
             if (self.ShutterDevice.state == ShutterDevice.REFERENCE_STATE and interPeakDist[0]<15900 and interPeakDist[0]>10000):
-                print "Updating calibration..."
+                print("Updating calibration...")
                 WaterBS = self.waterConst[0]*T*T + self.waterConst[1]*T + self.waterConst[2]
                 PlasticBS = 16.3291 - (self.plasticConst[0]*T*T + self.plasticConst[1]*T + self.plasticConst[2])
                 SD = 2*(PlasticBS - WaterBS)/(interPeakDist[1] + interPeakDist[2])
@@ -857,7 +853,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
     # Plot fitted Brillouin spectrum
     # curvedata is a tuple of (raw spectrum, fitted spectrum)
     def UpdateSpectrum(self,curveData):
-        # print "[UpdateSpectrum]"
+        # print("[UpdateSpectrum]")
         rawSpect = curveData[0]
         fitSpect = curveData[1]
 
@@ -870,7 +866,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             self.singleSpectrumItem2.setData(x=np.copy(xdata), y=np.zeros(len(rawSpect)))
 
         if self.specSeriesData.shape[1]!=len(rawSpect):    #if size of spectrum change, reset the data
-            # print '[UpdateSpectrum] Resizing spectrograph'
+            # print('[UpdateSpectrum] Resizing spectrograph')
             self.specSeriesData = np.zeros((self.maxScanPoints, len(rawSpect)))
             self.specSeriesSize = 0
 
@@ -888,7 +884,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
     # Update raw Andor image
     def AndorProcessUpdate(self, image):
-        # print "[AndorProcessUpdate]"
+        # print("[AndorProcessUpdate]")
         #(counter, image) = self.AndorProcessThread.processedData.get()
         # img_rect = QtCore.QRectF(0, 0, 1024, 170)
         # self.EMCCDImage.setRect(img_rect)
@@ -898,13 +894,13 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
     # makoData[0] is the CMOS camera image with pupil detection
     # makoData[1] is a tuple with the pupil center coordinate
     def MakoProcessUpdate(self, makoData):
-        # print "[MakoProcessUpdate]"
+        # print("[MakoProcessUpdate]")
         image = makoData[0]
         center = np.array([makoData[1]])
         # center[1] = self.MakoDeviceThread.imageHeight - center[1]
         # (counter, data) = self.MakoProcessThread.processedData.get()
-        # print 'self.makoPoints =', self.makoPoints
-        # print 'center =', center
+        # print('self.makoPoints =', self.makoPoints)
+        # print('center =', center)
         if len(self.makoPoints[~np.isnan(self.makoPoints)])>0 and np.all(~np.isnan(center)):
             adjPoints = self.makoPoints + center
             spots = [{'pos': pos} for pos in adjPoints]
@@ -927,7 +923,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             return
 
         # filename = dialog.getSaveFileName(self,"Create a new session file","","HDF5 Files(*.hdf5)", options=options)
-        # print filename
+        # print(filename)
 
         # if filename:
         #     filename = str(filename)
@@ -952,7 +948,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
 
     def closeEvent(self,event):
-        print "Program Shutdown"
+        print("Program Shutdown")
         if self.dataFile:
             self.dataFile.close()
 
@@ -981,7 +977,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             if self.validDataView:
                 self.dataViewSlider.valueChanged.disconnect()   
 
-        print "[Data Viewer Tab] Open"
+        print("[Data Viewer Tab] Open")
         
 
         # Find which dataset is selected
@@ -994,13 +990,13 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             if item.parent() is None:       # Experiment selected (not scan)
                 expIdx = item.row()
                 if (item.rowCount() == 0):  # No scan in experiment
-                    print "[dataViewerTabChanged] no scan in experiment"
+                    print("[dataViewerTabChanged] no scan in experiment")
                     return
                 scanIdx = 0
             else:
                 expIdx = item.parent().row()
                 scanIdx = item.row()        
-                print "[dataViewerTabChanged] Selected exp_%d scan_%d" % (expIdx, scanIdx)
+                print("[dataViewerTabChanged] Selected exp_%d scan_%d" % (expIdx, scanIdx))
         else:
             return
 
@@ -1115,7 +1111,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         # self.singleSpectrumItem.setData(x=xdata, y=ydata)
 
         # if self.specSeriesData.shape[1]!=len(rawSpect):    #if size of spectrum change, reset the data
-        #     print '[UpdateSpectrum] Resizing spectrograph'
+        #     print('[UpdateSpectrum] Resizing spectrograph')
         #     self.specSeriesData = np.zeros((self.maxScanPoints, len(curveData)))
         #     self.specSeriesSize = 0
 
@@ -1171,7 +1167,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         idx = selected.indexes()[0]
         item = self.model.itemFromIndex(idx)
         if item.parent() is None:
-            # print "Experiment selected"
+            # print("Experiment selected")
             return
         else:
             self.updateHeatmapBySelection(idx)

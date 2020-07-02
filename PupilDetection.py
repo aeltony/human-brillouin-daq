@@ -35,10 +35,10 @@ class PupilDetection:
 		"""
 		pupilFrac = math.pi*radiusGuess*radiusGuess/1000./1000. # Approx. fraction of image taken up by pupil
 
-		# print 'np.mean(gray) =', np.mean(grayBlur)
-		# print 'np.min(gray) =', np.amin(grayBlur)
-		# print 'np.quantile(grayBlur, pupilFrac) =', np.quantile(grayBlur, pupilFrac)
-		# print 'np.quantile(grayBlur, 0.5) =', np.quantile(grayBlur, 0.5)
+		# print('np.mean(gray) =', np.mean(grayBlur))
+		# print('np.min(gray) =', np.amin(grayBlur))
+		# print('np.quantile(grayBlur, pupilFrac) =', np.quantile(grayBlur, pupilFrac))
+		# print('np.quantile(grayBlur, 0.5) =', np.quantile(grayBlur, 0.5))
 		retval, threshold = cv2.threshold(grayBlur, np.quantile(grayBlur, pupilFrac)+5, 255, 0)
 
 		# cv2.imshow("threshold", threshold)
@@ -60,7 +60,7 @@ class PupilDetection:
 		#draws contours on video
 		# cv2.drawContours(drawing, contours, -1, (255, 0, 0), 2) 
 
-		# print "[DetectPupil] num contours: %d" % len(contours)
+		# print("[DetectPupil] num contours: %d" % len(contours))
 
 		for contour in contours:
 
@@ -106,12 +106,12 @@ class PupilDetection:
 
 			return (drawing, center)
 
-		# print 'Pupil center =', center
+		# print('Pupil center =', center)
 		return (drawing, center)
 
 if __name__ == "__main__":
 	testImage = 128 * np.ones((512,512, 3))
 	PD = PupilDetection()
 	res = PD.DetectPupil(testImage)
-	print res
-	print "done"
+	print(res)
+	print("done")

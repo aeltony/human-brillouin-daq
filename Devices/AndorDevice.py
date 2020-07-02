@@ -5,8 +5,8 @@ import DataFitting
 from Andor_DLL_wrap.andor_wrap import *
 import imutils
 import cv2
-from PyQt4 import QtGui,QtCore
-from PyQt4.QtCore import pyqtSignal
+from PyQt5 import QtGui,QtCore
+from PyQt5.QtCore import pyqtSignal
 
 # This is one of the main devices. It simply acquires a single set of data 
 # from the Andor EMCCD when the condition AndorDevice.continueEvent() is 
@@ -19,14 +19,14 @@ class AndorDevice(BrillouinDevice.Device):
         super(AndorDevice, self).__init__(stop_event)   #runMode=0 default
         self.deviceName = "Andor"
         self.cam = Andor()
-        self.cam.SetVerbose(False)
+        self.cam.SetVerbose(True)
         self.set_up()
         self.andor_lock = app.andor_lock
         self.runMode = 0    #0 is free running, 1 is scan
 
         # buffer for Andor DLL image acquisition
         c_int32_p = POINTER(c_int32)
-        self.imageBuffer = np.array([0 for i in range(512*512)])
+        self.imageBuffer = np.array([0 for i in range(self.cam.width*self.cam.height*2)])
         self.imageBuffer = self.imageBuffer.astype(np.int32)
         self.imageBufferPointer = self.imageBuffer.ctypes.data_as(c_int32_p)
 
@@ -34,28 +34,26 @@ class AndorDevice(BrillouinDevice.Device):
 
     # set up default parameters
     def set_up(self):
-        self.cam.SetReadMode(4)
-        self.cam.SetAcquisitionMode(1)
-        self.cam.SetTriggerMode(0)
-        self.cam.SetImage(1,8,1,self.cam.width,1,self.cam.height) #changed 1,4,1
-        self.cam.SetShutter(1,1,0,0)
+        self.cam.SetCycleMode(u'Fixed')
+        self.cam.SetTriggerMode(u'Internal')
+        self.cam.SetNumberAccumulations(1)
+        self.cam.SetFrameCount(1)
+        self.cam.SetShutter(u'Auto')
+        self.cam.SetReadoutRate(u'100 MHz')
+        self.cam.SetPreAmpGain(u'16-bit (low noise & high well capacity)')
+        self.cam.SetPixelEncoding(u'Mono32')
+        self.cam.SetHBin(1)
+        self.cam.SetVBin(1)
+        self.cam.SetHeight(2048)
+        self.cam.SetWidth(2048)
         self.cam.SetExposureTime(.3)
-        self.cam.SetTemperature(-120)
-        self.cam.SetCoolerMode(1)  # Continuous cooling
+        self.cam.SetCoolerMode(True)  # Continuous cooling
         self.cam.GetTemperature()
-        self.cam.CoolerON()
-        while self.cam.temperature > -20:
+        while self.cam.temperature > 5:
             self.cam.GetTemperature()
-            print "[AndorDevice] EMCCD cooling down, current T: ",self.cam.temperature,"C"
+            print("[AndorDevice] EMCCD cooling down, current T: ",self.cam.temperature,"C")
             time.sleep(1)
-        self.cam.SetOutputAmplifier(0)
-        self.cam.SetPreAmpGain(2)
-        self.cam.SetEMGainMode(2)
-        self.cam.SetEMAdvanced(0)
-        self.cam.SetEMCCDGain(300)
-        self.cam.SetHSSpeed(0,1)    # 5 MHz
-        self.cam.SetVSSpeed(1)  # 0.5us
-        self.cam.SetADChannel(0)
+        
 
     def __del__(self):
         return 0
@@ -76,7 +74,7 @@ class AndorDevice(BrillouinDevice.Device):
 
 
     def getData2(self):
-        print "[Andor] getData2 begin"
+        print("[Andor] getData2 begin")
         testExpTime = .05
         countsTarget = 15000.
         self.cam.SetExposureTime(testExpTime)
@@ -86,11 +84,11 @@ class AndorDevice(BrillouinDevice.Device):
         imageSize = self.cam.GetAcquiredDataDim()
         testImage = np.array(self.imageBuffer[0:imageSize], copy=True, dtype = np.uint16)
         maxCounts = np.amax(testImage)
-        print 'maxCounts =', maxCounts
+        print('maxCounts =', maxCounts)
         adjustedExpTime = countsTarget*testExpTime/maxCounts
         if adjustedExpTime > 2:
             adjustedExpTime = 2
-        print 'adjustedExpTime =', adjustedExpTime
+        print('adjustedExpTime =', adjustedExpTime)
         self.cam.SetExposureTime(adjustedExpTime)
         with self.andor_lock:
             self.cam.StartAcquisition()
@@ -116,44 +114,34 @@ class AndorDevice(BrillouinDevice.Device):
             self.unpause()
         return result
 
-
-    def setEMCCDGain(self, gain):
-        print "[AndorDevice] EM Gain set to %d" % gain
-        self.changeSetting(self.andor_lock, lambda:self.cam.SetEMCCDGain(int(gain)))       
-
-    def getEMCCDGain(self):
-        gain = self.getAndorSetting(self.cam.GetEMCCDGain, 'gain')
-        print "[AndorDevice] EM Gain is %d" % gain
-        return gain    
-
     def getExposure(self):
         with self.andor_lock:
             return self.cam.exposure
 
     def setExposure(self, exposureTime):
-        # print '[AndorDevice] setExposure got called!'
+        # print('[AndorDevice] setExposure got called!')
         self.changeSetting(self.andor_lock, lambda:self.cam.SetExposureTime(exposureTime))
-        print "[AndorDevice] Exposure set to %f s" % exposureTime
+        print("[AndorDevice] Exposure set to %f s" % exposureTime)
 
     def forceSetExposure(self, exposureTime):
         self.cam.SetExposureTime(exposureTime)
-        print "[AndorDevice] Exposure set to %f s" % exposureTime
+        print("[AndorDevice] Exposure set to %f s" % exposureTime)
 
     def setTemperature(self, desiredTemp):
-        if (desiredTemp < -80 or desiredTemp > 20):
-            print "[AndorDevice/setTemperature] Temperature out of range"
+        if (desiredTemp < 0 or desiredTemp > 20):
+            print("[AndorDevice/setTemperature] Temperature out of range")
             return
         self.changeSetting(self.andor_lock, lambda:self.cam.SetTemperature(int(desiredTemp)))
-        print "[AndorDevice] Temperature set to %d" % desiredTemp
+        print("[AndorDevice] Temperature set to %d" % desiredTemp)
 
     def getTemperature(self):
         temp = self.getAndorSetting(self.cam.GetTemperature, 'temperature')
-        # print "[AndorDevice] Temperature = %f" % temp
+        print("[AndorDevice] Temperature = %f" % temp)
         return temp
 
     def setAutoExp(self, autoExpStatus):
         self.autoExp = autoExpStatus
-        print 'autoExpStatus =', autoExpStatus
+        print('autoExpStatus =', autoExpStatus)
 
 # This class does the computation for free running mode, mostly displaying
 # to the GUI
@@ -199,10 +187,10 @@ class AndorProcessFreerun(BrillouinDevice.DeviceProcess):
     def doComputation(self, data):
         image_array = data[0] # np.array(data, dtype = np.uint16)
         exp_time = data[1]
-        print 'exp_time = ', exp_time
+        print('exp_time = ', exp_time)
 
         maximum = image_array.max()
-        proper_image = np.reshape(image_array, (-1, 512))   # 512 columns, 128 rows (4x1 binning)
+        proper_image = np.reshape(imageArray, (-1, 2048))   # 2048 columns
         scaled_image = proper_image*(255.0/maximum)
         scaled_image = scaled_image.astype(int)
         scaled_8bit = np.array(scaled_image, dtype = np.uint8)

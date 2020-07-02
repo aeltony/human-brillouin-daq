@@ -1,6 +1,6 @@
 import threading
-from PyQt4 import QtGui,QtCore
-from PyQt4.QtCore import pyqtSignal
+from PyQt5 import QtGui,QtCore
+from PyQt5.QtCore import pyqtSignal
 
 from time import sleep
 from timeit import default_timer as default_timer   #debugging
@@ -106,13 +106,13 @@ class Device(QtCore.QThread):
                         continue
                     else:
                         self.continueEvent.clear()
-                        # print self.deviceName + " continue acq"
+                        # print(self.deviceName + " continue acq")
                         break
             if continueLoop:
                 continue
 
             # if self.deviceName == 'Zaber':
-            #     print 'dataQueue size = ', self.dataQueue.qsize()
+            #     print('dataQueue size = ', self.dataQueue.qsize())
 
             while self.dataQueue.qsize() >= self.queueMax:
                 sleep(0.02)
@@ -128,12 +128,12 @@ class Device(QtCore.QThread):
 
             # if (currentMode == 1 and self.deviceName == 'Andor'):
             #     endTime = default_timer()  
-            #     print "Andor entire time = %f" % (endTime-startTime)
+            #     print("Andor entire time = %f" % (endTime-startTime))
 
-        print "[Device]" + self.deviceName + " thread stopped"
+        print("[Device]" + self.deviceName + " thread stopped")
 
     def test(self):
-        print '[BrillouinDevice] Test'
+        print('[BrillouinDevice] Test')
 
     def changeSetting(self, lock, functionHandle):
         if not self.isRunning():
@@ -249,7 +249,7 @@ class DeviceProcess(QtCore.QThread):
                     self._clearDataQueue = False
 
         except Queue.Empty:
-            # print "[DeviceProcess/processData] queue empty"
+            # print("[DeviceProcess/processData] queue empty")
             self.isIdle = True
             pass
 
@@ -259,7 +259,7 @@ class DeviceProcess(QtCore.QThread):
 
     def printData(self):
         t = sorted([x[1] for x in list(self.processedData.queue)])
-        print t
+        print(t)
 
 
 ########################################################################
@@ -274,7 +274,7 @@ class DeviceProcess(QtCore.QThread):
 
 #     def getData(self):
 #         sleep(1)
-#         print "device1 generating data"
+#         print("device1 generating data")
 #         return 4
 
 # class Device1Process(DeviceProcess):

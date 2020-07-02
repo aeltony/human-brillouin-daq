@@ -1,5 +1,5 @@
 import pyqtgraph as pg
-from PyQt4 import QtGui, QtCore
+from PyQt5 import QtGui, QtCore
 import pyqtgraph.parametertree.parameterTypes as pTypes
 from pyqtgraph.parametertree import Parameter, ParameterTree, ParameterItem, registerParameterType
 

@@ -114,8 +114,8 @@ def fitAline(steps, aline, signal):
 	if len(blurred) > 8:
 		stromaGuess = np.mean(blurred[sortAline[-4:]])
 		aqGuess = np.mean(blurred[sortAline[:4]])
-		print 'stromaGuess =', stromaGuess
-		print 'aqGuess =', aqGuess
+		print('stromaGuess =', stromaGuess)
+		print('aqGuess =', aqGuess)
 	else:
 		stromaGuess = np.amax(blurred, axis=0)
 		aqGuess = np.amin(blurred, axis=0)
@@ -128,7 +128,7 @@ def fitAline(steps, aline, signal):
 	pars['stromaBS'].set(stromaGuess, min=5.4, max=6.)
 	pars['width'].set(widthGuess, min=30., max=1000)
 	pars['aqBS'].set(aqGuess, min=5.0, max=5.4)
-	print 'pars = ', pars
+	print('pars = ', pars)
 
 	try:
 		result = model.fit(aline, pars, x=steps, weights=weights, method='Nelder', fit_kws={'ftol':1e-6,'xtol':1e-6})
@@ -136,7 +136,7 @@ def fitAline(steps, aline, signal):
 		idxEnd = (np.abs(steps - result.params['endStroma'].value)).argmin()
 		strIdx = (steps < steps[idxEnd]) & (abs(aline - stromaGuess) < 0.1)
 	except:
-		print '[ScanManager/run] Segmentation could not fit A-line'
+		print('[ScanManager/run] Segmentation could not fit A-line')
 		idxEnd = (np.abs(steps - endGuess)).argmin()
 		strIdx = (steps < steps[idxEnd]) & (abs(aline - stromaGuess) < 0.1)
 
@@ -152,7 +152,7 @@ def fitAline(steps, aline, signal):
 	try:
 		stromaBS = np.nanmean(strPts)
 	except:
-		print '[ScanManager/run] Segmentation could not fit A-line'
+		print('[ScanManager/run] Segmentation could not fit A-line')
 		stromaBS = np.nan
 
 	try:
@@ -162,7 +162,7 @@ def fitAline(steps, aline, signal):
 		stromaIdx = []
 
 	end = timer()
-	print '[ScanManager/run] Segmentation time =', end-start
+	print('[ScanManager/run] Segmentation time =', end-start)
 
 	return (stromaBS, stromaIdx)
 
@@ -206,14 +206,14 @@ def alineShape(x, endStroma, stromaBS, width, aqBS):
 # 	pars['width'].set(widthGuess, min=0., max=steps[-1])
 # 	pars['aqBS'].set(aqGuess, min=5., max=5.45)
 
-# 	print 'pars = ', pars
+# 	print('pars = ', pars)
 
 # 	try:
 # 		result = model.fit(aline, pars, x=steps, weights=weights, nan_policy='omit')
 # 		print(result.fit_report())
 # 		idxEnd = (np.abs(steps - result.params['endStroma'].value)).argmin()
 # 	except:
-# 		print '[ScanManager/run] Segmentation failed.'
+# 		print('[ScanManager/run] Segmentation failed.')
 # 		idxEnd = idxStart + 3
 
 # 	strPts = aline[idxStart:idxEnd]

@@ -110,10 +110,10 @@ class SessionData(QtCore.QObject):
 		elif self.filename is not None:
 			filename = self.filename
 		else:
-			print "[SessionData/saveToFile] filename not provided"
+			print("[SessionData/saveToFile] filename not provided")
 			return
 		# print filename
-		print "Session File Save: " + filename
+		print("Session File Save: " + filename)
 		with h5py.File(filename, 'a') as fHandle:
 			if updateFieldOnly:	#TODO: throw errors when the field path is invalid
 				pathElements = fieldPath.split('/')
@@ -146,7 +146,7 @@ class SessionData(QtCore.QObject):
 				if hasattr(self, data):
 					# first check if file already has this dataset
 					datasetName = data
-					# print 'Saving session: ' + datasetName
+					# print('Saving session: ' + datasetName)
 					if datasetName in fHandle:	# delete if already exist
 						del fHandle[datasetName]
 					fHandle.create_dataset(datasetName, data=self.__dict__[data])
@@ -253,7 +253,7 @@ class ExperimentData:
 			if hasattr(self, data):
 				# first check if file already has this dataset
 				datasetName = datasetPath + data
-				# print 'Saving experiment: ' + datasetName
+				# print('Saving experiment: ' + datasetName)
 				if datasetName in fHandle:	# delete if already exist
 					del fHandle[datasetName]
 				fHandle.create_dataset(datasetName, data=self.__dict__[data])
@@ -331,15 +331,15 @@ class ScanData:
 			if hasattr(self, data):
 				# first check if file already has this dataset
 				datasetName = datasetPath + data
-				# print 'Saving scan: ' + datasetName
+				# print('Saving scan: ' + datasetName)
 				if datasetName in fHandle:	# delete if already exist
 					del fHandle[datasetName]
 				if hasattr(self.__dict__[data], '__len__') and (not isinstance(self.__dict__[data], str)):
-					# print 'Compressing data:' + datasetName
+					# print('Compressing data:' + datasetName)
 					fHandle.create_dataset(datasetName, data=self.__dict__[data], chunks=True, \
 						shuffle=True, compression='gzip', compression_opts=9)
 				else:
-					# print 'Not compressing data:' + datasetName
+					# print('Not compressing data:' + datasetName)
 					fHandle.create_dataset(datasetName, data=self.__dict__[data])
 
 		gp = fHandle[datasetPath]

@@ -90,8 +90,7 @@ class BrillouinTreeModel(QtGui.QStandardItemModel):
 	# updates self.treeView to matche data in self.session
 	# arguments corresponds to those in ScanManager.saveToFile
 	def updateTree(self, updateIndices, treeView):
-		# print "[updateTree]"
-		# print updateIndices
+		# print("[updateTree]")
 		# if fieldOnly:
 		#     #TODO: implement this
 		#     return
@@ -145,12 +144,12 @@ class BrillouinTreeModel(QtGui.QStandardItemModel):
 	# 	idx = selected.indexes()[0]
 	# 	item = self.itemFromIndex(idx)
 	# 	if item.parent() is None:
-	# 	    print "Experiment selected"
+	# 	    print("Experiment selected")
 	# 	    return
 	# 	else:
 	# 	    expIdx = item.parent().row()
 	# 	    scanIdx = item.row()
-	# 	    print "Exp_%d Scan_%d selected" % (expIdx, scanIdx)
+	# 	    print("Exp_%d Scan_%d selected" % (expIdx, scanIdx))
 
 		    # TODO: emit signal to update heatmap
 		    # if len(self.heatmapScatterLastClicked)==1:

@@ -3,8 +3,8 @@ import sys
 import time
 import traceback
 
-from PyQt4 import QtGui,QtCore
-from PyQt4.QtCore import pyqtSignal
+from PyQt5 import QtGui,QtCore
+from PyQt5.QtCore import pyqtSignal
 
 import numpy as np
 from timeit import default_timer as timer   #debugging
@@ -25,7 +25,7 @@ class TempSensorDevice(BrillouinDevice.Device):
         self.currentTemp = -1
 
         self.set_up()
-        print "[TempSensorDevice] Temperature sensor found"
+        print("[TempSensorDevice] Temperature sensor found")
         self.TempSensor_lock = app.TempSensor_lock
         self.runMode = 0    #0 is free running, 1 is scan
 
@@ -33,7 +33,7 @@ class TempSensorDevice(BrillouinDevice.Device):
     def set_up(self):
         # Allocate a new Phidget Channel object
         self.ch = TemperatureSensor()
-        self.ch.setDeviceSerialNumber(562627) # VINT Hub serial number
+        self.ch.setDeviceSerialNumber(562607) # VINT Hub serial number
         self.ch.setHubPort(0) # Port RTD Phidget is connected to
         self.ch.setIsHubPortDevice(0) # Not a networked device
         self.ch.setChannel(0) # Channel 0 = temperature sensor
@@ -41,7 +41,7 @@ class TempSensorDevice(BrillouinDevice.Device):
         try:
             self.ch.openWaitForAttachment(5000)
         except PhidgetException as e:
-            print '[TempSensorDevice] Could not find RTD Phidget.'
+            print('[TempSensorDevice] Could not find RTD Phidget.')
         self.ch.setTemperatureChangeTrigger(0)
         self.ch.setDataInterval(1000)
         print("[TempSensorDevice] Temperature reading every " + str(self.ch.getDataInterval()) + " ms")
@@ -53,7 +53,7 @@ class TempSensorDevice(BrillouinDevice.Device):
 
     def shutdown(self):
         self.ch.close()
-        print "[TempSensorDevice] Closed"
+        print("[TempSensorDevice] Closed")
 
     def getData(self):
         with self.TempSensor_lock:
@@ -73,7 +73,7 @@ class TempSensorFreerun(BrillouinDevice.DeviceProcess):
 
     def doComputation(self, data):
         temperature = data
-        # print '[doComputation] Temperature = ', temperature
+        # print('[doComputation] Temperature = ', temperature)
         self.updateTempSeqSig.emit(temperature)
         return temperature
 

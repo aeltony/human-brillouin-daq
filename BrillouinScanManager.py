@@ -43,7 +43,7 @@ class ScanManager(QtCore.QThread):
 
 	# TODO: add a lock for accessing these variables
 	def assignScanSettings(self, settings):
-		# print '[ScanManager/assignScanSettings]'
+		# print('[ScanManager/assignScanSettings]')
 		self.scanSettings = settings
 
 	# deviceThread is a BrillouinDevice object
@@ -74,23 +74,23 @@ class ScanManager(QtCore.QThread):
 		# make sure saving settings are ok
 		if self.saveScan:
 			if self.sessionData is None:
-				print "No Session provided to save data in; set ScanManager.sessionData first"
+				print("No Session provided to save data in; set ScanManager.sessionData first")
 				return
 			# if self.filename is None:
-			# 	print "No data file provided to save; set ScanManager.filename first"
+			# 	print("No data file provided to save; set ScanManager.filename first")
 			# 	return
 			if self.saveExpIndex == -1:
-				print "Save parameter is empty; set ScanManager.saveParamter first"
+				print("Save parameter is empty; set ScanManager.saveParamter first")
 				return   
 
 
 		# Initialize experiment, like open shutters
 		# if (np.abs(self.motor.getCurrentPosition()) > 0.5):	# home motor only if necessary to avoid delay
 		# 	self.motor.moveHome()
-		# print self.scanSettings['start']
+		# print(self.scanSettings['start'])
 		self.motor.setMotorAsync('moveRelative', [self.scanSettings['start']])
 		self.shutter.setShutterState((1, 0))#SAMPLE_STATE
-		# print "[ScanManager/run] start"
+		# print("[ScanManager/run] start")
 
 		# first turn off free running mode
 		for dev in self.sequentialAcqList:
@@ -120,12 +120,12 @@ class ScanManager(QtCore.QThread):
 			dev.unpause()
 
 		# endTime1 = timer()
-		# print "[ScanManager/run] t1 = %.3f s" % (endTime1 - startTime)
+		# print("[ScanManager/run] t1 = %.3f s" % (endTime1 - startTime))
 
 		# sleep(0.2)
-		# print "remnant data"
-		# print self.sequentialProcessingList[0].processedData.qsize()
-		# print self.sequentialProcessingList[1].processedData.qsize()
+		# print("remnant data")
+		# print(self.sequentialProcessingList[0].processedData.qsize())
+		# print(self.sequentialProcessingList[1].processedData.qsize())
 		
 
 		# provide scan settings
@@ -133,7 +133,7 @@ class ScanManager(QtCore.QThread):
 
 		for k in range(self.scanSettings['frames']):
 			# Check if "Cancel" button pressed:
-			# print 'self.cancel_event =', self.cancel_event.is_set()
+			# print('self.cancel_event =', self.cancel_event.is_set())
 			if self.cancel_event.is_set():
 				# If scan cancelled, skip to calibration data (wrap-up scan)
 				break
@@ -168,7 +168,7 @@ class ScanManager(QtCore.QThread):
 
 
 		# endTime = timer()
-		# print "[ScanManager/run] Scan time = %.3f s" % (endTime - startTime)
+		# print("[ScanManager/run] Scan time = %.3f s" % (endTime - startTime))
 
 		self.sequentialAcqList[0].forceSetExposure(self.scanSettings['sampleExp'])
 		self.motor.moveHome()
@@ -245,7 +245,7 @@ class ScanManager(QtCore.QThread):
 			lineScan.MeanPupilCenters = np.array([np.nan, np.nan])
 		else:
 			lineScan.MeanPupilCenters = np.nanmean(lineScan.PupilDetectorCenters, 1)
-		# print 'lineScan.MeanPupilCenters =', lineScan.MeanPupilCenters
+		# print('lineScan.MeanPupilCenters =', lineScan.MeanPupilCenters)
 
 		pupilPos = np.transpose(lineScan.MeanPupilCenters)
 		laserPos = np.array([np.float(self.scanSettings['laserX']),np.float(self.scanSettings['laserY'])])
@@ -270,7 +270,7 @@ class ScanManager(QtCore.QThread):
 				# SD = np.append(SD, 2*(9.6051 - 5.1157)/(interPeakDist[1] + interPeakDist[2]))
 				# FSR = np.append(FSR, 2*5.1157 + interPeakDist[1]*SD[j])
 			else:
-				print "[ScanManager/run] Calibration #%d failed." %j
+				print("[ScanManager/run] Calibration #%d failed." %j)
 				SD = np.append(SD, np.nan)
 				FSR = np.append(FSR, np.nan)
 		try:
@@ -278,11 +278,11 @@ class ScanManager(QtCore.QThread):
 				SDcal = np.nanmean(SD)
 				FSRcal = np.nanmean(FSR)
 			else:
-				print '[ScanManager/run] SD / FSR = NaN'
+				print('[ScanManager/run] SD / FSR = NaN')
 				SDcal = np.nan
 				FSRcal = np.nan
 		except:
-			print '[ScanManager/run] Calibration failed.'
+			print('[ScanManager/run] Calibration failed.')
 			SDcal = np.nan
 			FSRcal = np.nan
 
@@ -305,12 +305,12 @@ class ScanManager(QtCore.QThread):
 
 		lineScan.BSList = aline
 		lineScan.FitSpecList = fittedSpect
-		# print 'A-line scan:', aline
+		# print('A-line scan:', aline)
 
 		#### Segmentation of A-line scan into air / cornea / aq humor
 		steps = np.linspace(0,len(aline)-1,len(aline))
 		(lineBS, strIdx) = DataFitting.fitAline(steps, aline, signal)
-		# print 'lineBS =', lineBS
+		# print('lineBS =', lineBS)
 		lineScan.BS = lineBS
 		lineScan.StromaIdx = strIdx # Indices for segmented region
 
@@ -326,4 +326,4 @@ class ScanManager(QtCore.QThread):
 		# Send signal to clear GUI plots 
 		self.clearGUISig.emit()
 
-		# print "[ScanManager/run] finished"
+		# print("[ScanManager/run] finished")

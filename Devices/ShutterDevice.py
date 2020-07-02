@@ -1,7 +1,7 @@
 #import BrillouinDevice
 
-from PyQt4 import QtGui,QtCore
-from PyQt4.QtCore import pyqtSignal
+from PyQt5 import QtGui,QtCore
+from PyQt5.QtCore import pyqtSignal
 
 from ctypes import *
 
@@ -10,10 +10,10 @@ from ctypes import *
 # TODO: set the USB code in config file
 class ShutterDevice:
 
-	dll = WinDLL("C:\\Program Files\\quad-shutter\\Quad Shutter dll and docs\\x64\\PiUsb")
+	dll = WinDLL("C:\\Program Files (x86)\\Picard Industries\\USB Quad Shutter\\PiUsb")
 
-	usbObjCode = 312	# Objective shutter
-	usbRefCode = 314	# Reference shutter
+	usbObjCode = 384	# Objective shutter
+	usbRefCode = 384	# Reference shutter
 
 	SAMPLE_STATE = (1, 0)
 	REFERENCE_STATE = (0, 1)
@@ -38,14 +38,14 @@ class ShutterDevice:
 	def shutdown(self):
 		ShutterDevice.dll.piDisconnectShutter(self.usbObj)
 		ShutterDevice.dll.piDisconnectShutter(self.usbRef)
-		print "[ShutterDevice] Closed"
+		print("[ShutterDevice] Closed")
 		
 	# state is a tuple of (Objective, Reference)
 	def setShutterState(self, state):
 		ShutterDevice.dll.piSetShutterState(state[0], self.usbObj)
 		ShutterDevice.dll.piSetShutterState(state[1], self.usbRef)
 		self.state = state
-		print "[ShutterDevice] (ObjShutter, RefShutter) = (%d, %d)" % (state[0], state[1])
+		print("[ShutterDevice] (ObjShutter, RefShutter) = (%d, %d)" % (state[0], state[1]))
 
 	def getShutterState(self):
 		objState = ShutterDevice.dll.piGetShutterState(byref(self.s2), self.usbObj)

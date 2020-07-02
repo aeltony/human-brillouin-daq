@@ -5,8 +5,8 @@ from pymba import *
 
 import imutils
 import cv2
-from PyQt4 import QtGui,QtCore
-from PyQt4.QtCore import pyqtSignal
+from PyQt5 import QtGui,QtCore
+from PyQt5.QtCore import pyqtSignal
 
 import numpy as np
 from timeit import default_timer as default_timer   #debugging
@@ -56,7 +56,7 @@ class MakoDevice(BrillouinDevice.Device):
             time.sleep(0.2)
         camera_ids = self.vimba.getCameraIds()
 
-        print "CMOS cameras found: ",camera_ids
+        print("CMOS cameras found: ",camera_ids)
         self.camera = self.vimba.getCamera(camera_ids[0])
 
         self.camera.openCamera()
@@ -67,9 +67,9 @@ class MakoDevice(BrillouinDevice.Device):
         #     print('Camera feature:', name)
 
         self.camera.AcquisitionMode = 'Continuous'
-        #print "Frame rate limit: "
-        #print self.camera.AcquisitionFrameRateLimit
-        #print self.camera.AcquisitionFrameRateAbs
+        #print("Frame rate limit: ")
+        #print(self.camera.AcquisitionFrameRateLimit)
+        #print(self.camera.AcquisitionFrameRateAbs)
 
         self.frame = self.camera.getFrame()
         self.frame.announceFrame()
@@ -78,7 +78,7 @@ class MakoDevice(BrillouinDevice.Device):
         return
 
     def shutdown(self):
-        print "[MakoDevice] Closing Device"
+        print("[MakoDevice] Closing Device")
         self.camera.runFeatureCommand('AcquisitionStop')
         self.camera.endCapture()
         self.camera.revokeAllFrames()
@@ -97,7 +97,7 @@ class MakoDevice(BrillouinDevice.Device):
                            shape = (self.frame.height,self.frame.width))
             image_arr = image_arr.reshape((self.frame.height//self.bin_size, self.bin_size, \
                 self.frame.width//self.bin_size, self.bin_size)).max(3).max(1)
-        # print "[MakoDevice] frame acquired, queue = %d" % self.dataQueue.qsize()
+        # print("[MakoDevice] frame acquired, queue = %d" % self.dataQueue.qsize())
         return image_arr
 
 
@@ -130,7 +130,7 @@ class MakoFreerun(BrillouinDevice.DeviceProcess):
 
     # data is an numpy array of type int32
     def doComputation(self, data):
-        # print "[MakeFreerun] processing"
+        # print("[MakeFreerun] processing")
 
         # startTime = default_timer()
 
@@ -140,10 +140,10 @@ class MakoFreerun(BrillouinDevice.DeviceProcess):
         # if no pupil found (centerX, centerY) = (np.nan, np.nan)
         (pupilDetectedImage, center) = self.pupilDetector.DetectPupil(dataOriented, self.pupilRadius)
         image = cv2.cvtColor(pupilDetectedImage, cv2.COLOR_BGR2RGB)
-        # print 'center = ', center
+        # print('center = ', center)
         self.updateCMOSImageSig.emit((image, center))
         
         # endTime = default_timer()
-        # print "[MakoFreerun/doComputation] t1 = %.3f s" % (endTime - startTime)
+        # print("[MakoFreerun/doComputation] t1 = %.3f s" % (endTime - startTime))
         
         return (image, center)

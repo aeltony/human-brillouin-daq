@@ -25,7 +25,7 @@ if system.GeVTLIsPresent:
     system.runFeatureCommand("GeVDiscoveryAllOnce")
     time.sleep(0.2)
 camera_ids = vimba.getCameraIds()
-print camera_ids
+print(camera_ids)
 
 #access camera
 camera = vimba.getCamera(camera_ids[0])
@@ -118,7 +118,7 @@ while 1:
         if circularity > 1.2:
             continue
 
-        print area
+        print(area)
         bounding_box = cv2.boundingRect(contour)
 
         extend = area / (bounding_box[2] * bounding_box[3])
@@ -148,14 +148,14 @@ while 1:
     #press Esc key to exit video window
     if k == 0x1b:
         end = time.time()
-        print "Frames: ", frames
+        print("Frames: ", frames)
         cv2.destroyAllWindows()
         break
 
 
 total_time = end - start
-print "Total time:", total_time
-print "FPS:", frames/total_time
+print("Total time:", total_time)
+print("FPS:", frames/total_time)
 
 
 #clean up and stop accessing camera -- important so other programs can access camera afterwards
