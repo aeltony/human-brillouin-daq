@@ -1,4 +1,4 @@
-import BrillouinDevice
+import Devices.BrillouinDevice
 import time
 
 from pymba import *
@@ -17,7 +17,7 @@ from PupilDetection import *
 # This is the CMOS camera. Included in this file in the processing class
 # is pupil tracking.
 
-class MakoDevice(BrillouinDevice.Device):
+class MakoDevice(Devices.BrillouinDevice.Device):
 
     # This class always runs, so it takes app as an argument
     def __init__(self, stop_event, app):
@@ -25,6 +25,7 @@ class MakoDevice(BrillouinDevice.Device):
         self.deviceName = "Mako"
         self.camera = None
         self.vimba = Vimba()
+
         self.set_up()
 
         self.mako_lock = app.mako_lock
@@ -104,7 +105,7 @@ class MakoDevice(BrillouinDevice.Device):
 
 # This class does the computation for free running mode, mostly displaying
 # to the GUI
-class MakoFreerun(BrillouinDevice.DeviceProcess):
+class MakoFreerun(Devices.BrillouinDevice.DeviceProcess):
     updateCMOSImageSig = pyqtSignal('PyQt_PyObject')
 
     def __init__(self, device, stopProcessingEvent, finishedTrigger = None):

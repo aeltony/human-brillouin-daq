@@ -4,7 +4,7 @@ from PyQt5.QtCore import pyqtSignal
 
 from time import sleep
 from timeit import default_timer as default_timer   #debugging
-import Queue
+import queue as Queue
 
 # Device is designed to be threadsafe, i.e. can be used from both the GUI thread and also 
 # passed into the Scan thread

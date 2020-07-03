@@ -70,7 +70,7 @@ def fitSpectrum(sline, xtol=1e-6, ftol=1e-6, maxfev=500):
 				interPeaksteps[1] = out.params['pk4_center'].value - out.params['pk1_center'].value
 				interPeaksteps[2] = out.params['pk3_center'].value - out.params['pk2_center'].value
 		except:
-			print '[AndorDevice] Fitting spectrum failed'
+			print('[AndorDevice] Fitting spectrum failed')
 			interPeaksteps = np.array([])
 			fittedSpect = np.nan*np.ones(sline.shape)
 	else:

@@ -1,5 +1,5 @@
-from PyQt4 import QtGui,QtCore
-from PyQt4.QtCore import pyqtSignal
+from PyQt5 import QtGui,QtCore
+from PyQt5.QtCore import pyqtSignal
 
 from ExperimentData import *
 
@@ -159,7 +159,6 @@ class BrillouinTreeModel(QtGui.QStandardItemModel):
 
 		    # for p in self.heatmapScatterLastClicked:
 		    #     p.resetPen()
-		    
 		    # p = None
 		    # for p1 in self.heatmapScatter.points():
 		    #     if p1.data()[0] == expIdx and p1.data()[1] == scanIdx:

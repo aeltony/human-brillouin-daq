@@ -1,8 +1,8 @@
-import BrillouinDevice
+import Devices.BrillouinDevice
 import time
 import numpy as np
 import DataFitting
-from Andor_DLL_wrap.andor_wrap import *
+from Devices.Andor_DLL_wrap.andor_wrap import *
 import imutils
 import cv2
 from PyQt5 import QtGui,QtCore
@@ -12,7 +12,7 @@ from PyQt5.QtCore import pyqtSignal
 # from the Andor EMCCD when the condition AndorDevice.continueEvent() is 
 # set from a managing class. 
 
-class AndorDevice(BrillouinDevice.Device):
+class AndorDevice(Devices.BrillouinDevice.Device):
 
     # This class always runs, so it takes app as an argument
     def __init__(self, stop_event, app):
@@ -147,7 +147,7 @@ class AndorDevice(BrillouinDevice.Device):
 # to the GUI
 # It has a handle to the Andor device which has the data queue containing
 # raw frames from the camera
-class AndorProcessFreerun(BrillouinDevice.DeviceProcess):
+class AndorProcessFreerun(Devices.BrillouinDevice.DeviceProcess):
     updateBrillouinSeqSig = pyqtSignal('PyQt_PyObject')
     updateSpectrum = pyqtSignal('PyQt_PyObject')
     updateEMCCDImageSig = pyqtSignal('PyQt_PyObject')

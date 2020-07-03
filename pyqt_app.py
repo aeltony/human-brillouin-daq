@@ -17,7 +17,7 @@ from pyqtgraph.parametertree import Parameter, ParameterTree, ParameterItem, reg
 from pyqtgraphCustomize import *
 import qt_ui # UI import
 from ctypes import *
-from ConfigParser import SafeConfigParser
+from configparser import SafeConfigParser
 from Devices.AndorDevice import AndorDevice, AndorProcessFreerun
 from Devices.MakoDevice import MakoDevice, MakoFreerun
 from Devices.TempSensorDevice import TempSensorDevice, TempSensorFreerun
@@ -934,7 +934,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         #     return
 
         self.dataFileName = filename
-        self.sessionName.setText(QtCore.QString(filename))
+        self.sessionName.setText(QtCore.str(filename))
 
         #create a single new session
         self.session = SessionData(ntpath.basename(self.dataFileName), filename=filename)

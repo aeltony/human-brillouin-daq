@@ -1,8 +1,8 @@
 from datetime import datetime
 import numpy as np
 import h5py
-from PyQt4 import QtGui,QtCore
-from PyQt4.QtCore import pyqtSignal
+from PyQt5 import QtGui,QtCore
+from PyQt5.QtCore import pyqtSignal
 
 # This file describe classes that contain all the experimental data
 # Data is save in a hierachy of Session (patient) --> Experiment (i.e. left and right eyes) --> Scans(i.e. individual A-lines)

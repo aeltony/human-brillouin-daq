@@ -68,11 +68,11 @@ class SliderParameterItem(ParameterItem):
         self.button = QtGui.QPushButton(bt[0])
         self.button.setCheckable(True)
         self.button.setChecked(False)
-        self.button.setStyleSheet(QtCore.QString(
-            "QPushButton {background-color: red;} \
-            QPushButton:checked{background-color: green;} \
-            QPushButton:pressed {background-color: red;}" \
-            ))
+        #self.button.setStyleSheet(QtCore.QString(
+        #    "QPushButton {background-color: red;} \
+        #    QPushButton:checked{background-color: green;} \
+        #    QPushButton:pressed {background-color: red;}" \
+        #    ))
         self.layout.addWidget(self.button)
         self.layout.setContentsMargins(2,2,2,2)
         self.layout.setSpacing(0)

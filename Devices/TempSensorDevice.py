@@ -1,4 +1,4 @@
-import BrillouinDevice
+import Devices.BrillouinDevice
 import sys
 import time
 import traceback
@@ -16,7 +16,7 @@ from Phidget22.Net import *
 
 # This is the Temperature sensor.
 
-class TempSensorDevice(BrillouinDevice.Device):
+class TempSensorDevice(Devices.BrillouinDevice.Device):
 
     # This class always runs, so it takes app as an argument
     def __init__(self, stop_event, app):
@@ -65,7 +65,7 @@ class TempSensorDevice(BrillouinDevice.Device):
 
 # This class does the computation for free running mode, mostly displaying
 # to the GUI
-class TempSensorFreerun(BrillouinDevice.DeviceProcess):
+class TempSensorFreerun(Devices.BrillouinDevice.DeviceProcess):
     updateTempSeqSig = pyqtSignal('PyQt_PyObject')
 
     def __init__(self, device, stopProcessingEvent, finishedTrigger = None):

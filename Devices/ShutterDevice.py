@@ -10,10 +10,10 @@ from ctypes import *
 # TODO: set the USB code in config file
 class ShutterDevice:
 
-	dll = WinDLL("C:\\Program Files (x86)\\Picard Industries\\USB Quad Shutter\\PiUsb")
+	dll = WinDLL("C:\\Program Files (x86)\\Picard Industries\\USB Quad Shutter\\x64\\PiUsb")
 
 	usbObjCode = 384	# Objective shutter
-	usbRefCode = 384	# Reference shutter
+	usbRefCode = 338	# Reference shutter
 
 	SAMPLE_STATE = (1, 0)
 	REFERENCE_STATE = (0, 1)
@@ -25,13 +25,20 @@ class ShutterDevice:
 		self.c4 = c_int()
 		self.s2 = c_int()
 		self.s4 = c_int()
+		error = c_int()
 
 		#connecting to shutters - 312 (objective) and 314(reference)
-		self.usbObj = ShutterDevice.dll.piConnectShutter(byref(self.c2), ShutterDevice.usbObjCode)
-		self.usbRef = ShutterDevice.dll.piConnectShutter(byref(self.c4), ShutterDevice.usbRefCode)
+		self.usbObj = ShutterDevice.dll.piConnectShutter(byref(error), ShutterDevice.usbObjCode)
+		print('Error?', error.value)
+		self.usbRef = ShutterDevice.dll.piConnectShutter(byref(error), ShutterDevice.usbRefCode)
+		print('Error?', error.value)
+
+		print('self.usbObj =', self.usbObj)
+		print('self.usbRef =', self.usbRef)
 
 		if (state == None):
 			state = ShutterDevice.SAMPLE_STATE
+		print('Initializing shutter state')
 		self.setShutterState(state)
 		self.state = state
 
@@ -42,12 +49,22 @@ class ShutterDevice:
 		
 	# state is a tuple of (Objective, Reference)
 	def setShutterState(self, state):
-		ShutterDevice.dll.piSetShutterState(state[0], self.usbObj)
-		ShutterDevice.dll.piSetShutterState(state[1], self.usbRef)
+		#ShutterDevice.dll.piSetShutterState(state[0], self.usbObj)
+		#ShutterDevice.dll.piSetShutterState(state[1], self.usbRef)
 		self.state = state
 		print("[ShutterDevice] (ObjShutter, RefShutter) = (%d, %d)" % (state[0], state[1]))
 
 	def getShutterState(self):
-		objState = ShutterDevice.dll.piGetShutterState(byref(self.s2), self.usbObj)
-		refState = ShutterDevice.dll.piGetShutterState(byref(self.s4), self.usbRef)
+		#objState = ShutterDevice.dll.piGetShutterState(byref(self.s2), self.usbObj)
+		#refState = ShutterDevice.dll.piGetShutterState(byref(self.s4), self.usbRef)
+		#print('self.s2.value =', self.s2.value)
+		objState = 0
+		refState = 1
 		return (objState, refState)
+
+ERROR_CODE = {
+    0: 'PI_NO_ERROR',
+    1: 'PI_DEVICE_NOT_FOUND',
+    2: 'PI_OBJECT_NOT_FOUND',
+	3: 'PI_CANNOT_CREATE_OBJECT'
+	}

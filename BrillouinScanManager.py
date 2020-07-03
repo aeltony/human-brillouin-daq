@@ -1,7 +1,7 @@
 import threading
-from PyQt4 import QtGui,QtCore
-from PyQt4.QtCore import pyqtSignal
-import Queue
+from PyQt5 import QtGui,QtCore
+from PyQt5.QtCore import pyqtSignal
+import queue as Queue
 from timeit import default_timer as timer   #debugging
 from time import sleep
 import numpy as np
