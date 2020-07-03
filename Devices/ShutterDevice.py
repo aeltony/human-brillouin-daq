@@ -43,8 +43,8 @@ class ShutterDevice:
 		self.state = state
 
 	def shutdown(self):
-		ShutterDevice.dll.piDisconnectShutter(self.usbObj)
-		ShutterDevice.dll.piDisconnectShutter(self.usbRef)
+		#ShutterDevice.dll.piDisconnectShutter(self.usbObj)
+		#ShutterDevice.dll.piDisconnectShutter(self.usbRef)
 		print("[ShutterDevice] Closed")
 		
 	# state is a tuple of (Objective, Reference)

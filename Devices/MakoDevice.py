@@ -1,7 +1,7 @@
 import Devices.BrillouinDevice
 import time
 
-from pymba import *
+from Devices.pymba import *
 
 import imutils
 import cv2
@@ -31,7 +31,7 @@ class MakoDevice(Devices.BrillouinDevice.Device):
         self.mako_lock = app.mako_lock
         self.runMode = 0    #0 is free running, 1 is scan
 
-        self.camera.ExposureTimeAbs = 200000    # us??
+        self.camera.ExposureTimeAbs = 20000    # us??
 
         self.imageHeight = 1000
         self.imageWidth = 1000
@@ -50,6 +50,7 @@ class MakoDevice(Devices.BrillouinDevice.Device):
     # set up default parameters
     def set_up(self):
         self.vimba.startup()
+        print('vimba startup() done')
         system = self.vimba.getSystem()
 
         if system.GeVTLIsPresent:
@@ -57,7 +58,7 @@ class MakoDevice(Devices.BrillouinDevice.Device):
             time.sleep(0.2)
         camera_ids = self.vimba.getCameraIds()
 
-        print("CMOS cameras found: ",camera_ids)
+        print("CMOS camera found: ",camera_ids)
         self.camera = self.vimba.getCamera(camera_ids[0])
 
         self.camera.openCamera()
@@ -121,9 +122,6 @@ class MakoFreerun(Devices.BrillouinDevice.DeviceProcess):
         with self.flagLock:
             return self._pupilRadius
 
-    # you can use spectCenter as if it were a class attribute, e.g.
-    # pixel = self.spectCenter
-    # self.spectCenter = spectrumCenter
     @pupilRadius.setter
     def pupilRadius(self, pupilRad):
         with self.flagLock:
@@ -139,9 +137,14 @@ class MakoFreerun(Devices.BrillouinDevice.DeviceProcess):
         # dataOriented = np.data.transpose((1,0))
         # returns a tuple of (image, (centerX, centerY))
         # if no pupil found (centerX, centerY) = (np.nan, np.nan)
-        (pupilDetectedImage, center) = self.pupilDetector.DetectPupil(dataOriented, self.pupilRadius)
-        image = cv2.cvtColor(pupilDetectedImage, cv2.COLOR_BGR2RGB)
-        # print('center = ', center)
+        try:
+            (pupilDetectedImage, center) = self.pupilDetector.DetectPupil(dataOriented, self.pupilRadius)
+            image = cv2.cvtColor(pupilDetectedImage, cv2.COLOR_BGR2RGB)
+            print('center = ', center)
+        except:
+            image = dataOriented
+            #print('Pupil detection failed')
+            center = (np.nan, np.nan)
         self.updateCMOSImageSig.emit((image, center))
         
         # endTime = default_timer()

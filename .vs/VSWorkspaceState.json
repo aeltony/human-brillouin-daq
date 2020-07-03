@@ -1,9 +1,8 @@
 {
   "ExpandedNodes": [
     "",
-    "\\Devices",
-    "\\Devices\\pymba-master",
-    "\\Devices\\pymba-master\\pymba"
+    "\\Devices"
   ],
+  "SelectedNode": "\\pyqt_app.py",
   "PreviewInSolutionExplorer": false
 }

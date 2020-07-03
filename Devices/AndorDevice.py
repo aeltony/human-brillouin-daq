@@ -20,6 +20,7 @@ class AndorDevice(Devices.BrillouinDevice.Device):
         self.deviceName = "Andor"
         self.cam = Andor()
         self.cam.SetVerbose(True)
+        self.cam.Initialize()
         self.set_up()
         self.andor_lock = app.andor_lock
         self.runMode = 0    #0 is free running, 1 is scan
@@ -67,7 +68,7 @@ class AndorDevice(Devices.BrillouinDevice.Device):
                 self.cam.StartAcquisition()
                 self.cam.GetAcquiredData2(self.imageBufferPointer)
             expTime = self.getExposure()
-            imageSize = self.cam.GetAcquiredDataDim()
+            imageSize = int(self.cam.GetAcquiredDataDim())
             # return a copy of the data, since the buffer is reused for next frame
             im_arr = np.array(self.imageBuffer[0:imageSize], copy=True, dtype = np.uint16)
         return (im_arr, expTime)
@@ -81,7 +82,7 @@ class AndorDevice(Devices.BrillouinDevice.Device):
         with self.andor_lock:
             self.cam.StartAcquisition()
             self.cam.GetAcquiredData2(self.imageBufferPointer)
-        imageSize = self.cam.GetAcquiredDataDim()
+        imageSize = int(self.cam.GetAcquiredDataDim())
         testImage = np.array(self.imageBuffer[0:imageSize], copy=True, dtype = np.uint16)
         maxCounts = np.amax(testImage)
         print('maxCounts =', maxCounts)
@@ -190,7 +191,7 @@ class AndorProcessFreerun(Devices.BrillouinDevice.DeviceProcess):
         print('exp_time = ', exp_time)
 
         maximum = image_array.max()
-        proper_image = np.reshape(imageArray, (-1, 2048))   # 2048 columns
+        proper_image = np.reshape(image_array, (-1, 2048))   # 2048 columns
         scaled_image = proper_image*(255.0/maximum)
         scaled_image = scaled_image.astype(int)
         scaled_8bit = np.array(scaled_image, dtype = np.uint8)

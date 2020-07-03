@@ -19,21 +19,20 @@ from timeit import default_timer as default_timer   #debugging
 
 class Andor:
     def __init__(self):
-
+        self.verbosity   = True
         # Load library for Windows
-        self.dll = WinDLL('atcore')
-        self.utildll = WinDLL('atutility')
+        self.dll = WinDLL('C:\\Users\\Mandelstam\\Source\Repos\\human-brillouin-daq\\Devices\\Andor_DLL_wrap\\atcore')
+        self.utildll = WinDLL('C:\\Users\\Mandelstam\\Source\Repos\\human-brillouin-daq\\Devices\\Andor_DLL_wrap\\atutility')
         error = self.dll.AT_InitialiseLibrary('')
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         error = self.utildll.AT_InitialiseUtilityLibrary('')
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
-        self.handle      = None
+        self.handle      = c_int()
         self.temperature = None
         self.set_T       = None
         self.gain        = None
         self.gainRange   = None
         # self.status      = ERROR_CODE[error]
-        self.verbosity   = True
         self.channel     = None
         self.outamp      = None
         self.hsspeed     = None
@@ -62,12 +61,11 @@ class Andor:
         self.verbosity = state
 
     def AbortAcquisition(self):
-        error = self.dll.AT_Command(handle, 'AcquisitionStop')
+        error = self.dll.AT_Command(self.handle, 'AcquisitionStop')
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         return ERROR_CODE[error]
 
     def Initialize(self):
-        self.handle = c_int()
         error = self.dll.AT_Open(0, byref(self.handle))
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         return ERROR_CODE[error]
@@ -123,7 +121,7 @@ class Andor:
         return ERROR_CODE[error]
 
     def SetShutter(self,mode):
-        error = self.dll.AT_SetEnum(self.handle, 'ShutterMode', mode)
+        error = self.dll.AT_SetEnumString(self.handle, 'ShutterMode', mode)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         return ERROR_CODE[error]
 
@@ -177,24 +175,31 @@ class Andor:
         imageBuffer = imageBuffer.astype(np.int32)
         self.imageBufferPointer = imageBuffer.ctypes.data_as(c_int32_p)
         error = self.dll.AT_QueueBuffer(self.handle, self.imageBufferPointer, buffer_size)
+        print('Queue buffer error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         # Start acquisition
         error = self.dll.AT_Command(self.handle, 'AcquisitionStart')
+        print('Start acq error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         # Wait for frame to be available
         error = self.dll.AT_WaitBuffer(self.handle, byref(self.imageBufferPointer), byref(im_size), 10000)
+        print('Wait buffer error =', error)
+        self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
+        # Stop acquisition
+        error = self.dll.AT_Command(self.handle, 'AcquisitionStop')
+        print('Stop acq error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         return ERROR_CODE[error]
 
     def GetImageSize(self):
         im_size = c_int()
-        self.dll.AT_GetInt(self.handle, 'ImageSizeBytes', byref(im_size))
+        error = self.dll.AT_GetInt(self.handle, 'ImageSizeBytes', byref(im_size))
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         return im_size
     
     def GetStride(self):
         stride = c_int()
-        error = dll.AT_GetInt(handle, 'AOIStride', byref(stride))
+        error = self.dll.AT_GetInt(self.handle, 'AOIStride', byref(stride))
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         return stride.value
 
@@ -203,7 +208,7 @@ class Andor:
         stride = self.GetStride()
         startTime = default_timer()                                     
         # Remove padding
-        error = utildll.AT_ConvertBuffer(self.imageBufferPointer, imageArrayPointer, self.width, self.height, stride, u'Mono32', u'Mono32')
+        error = self.utildll.AT_ConvertBuffer(self.imageBufferPointer, imageArrayPointer, self.width, self.height, stride, u'Mono32', u'Mono32')
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         endTime = default_timer()    
         print("Andor conversion time = %.3f" % (endTime - startTime))

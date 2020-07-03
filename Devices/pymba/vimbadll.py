@@ -6,8 +6,8 @@ import platform
 import os
 from ctypes import *
 
-import pymba.vimbastructure as structs
-from .vimbaexception import VimbaException
+import Devices.pymba.vimbastructure as structs
+from Devices.pymba.vimbaexception import VimbaException
 
 if sys_plat == "win32":
 
@@ -19,13 +19,14 @@ if sys_plat == "win32":
         ]
         dlls = []
         for base in bases:
-            for major in range(3):
-                for minor in range(10):
+            for major in range(5):
+                for minor in range(20):
                     candidate = base % (major, minor, arch)
                     if os.path.isfile(candidate):
                         dlls.append(candidate)
         if not dlls:
             raise IOError("VimbaC.dll not found.")
+            print("VimbaC.dll not found.")
         return dlls[-1]
 
     if '64' in platform.architecture()[0]:

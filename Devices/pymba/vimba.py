@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
-import pymba.vimbastructure as structs
-from pymba.vimbadll import VimbaDLL
-from pymba.vimbaexception import VimbaException
-from pymba.vimbasystem import VimbaSystem
-from pymba.vimbacamera import VimbaCamera
-from pymba.vimbainterface import VimbaInterface
+import Devices.pymba.vimbastructure as structs
+from .vimbadll import VimbaDLL
+from .vimbaexception import VimbaException
+from .vimbasystem import VimbaSystem
+from .vimbacamera import VimbaCamera
+from .vimbainterface import VimbaInterface
 from ctypes import *
 
 
@@ -241,7 +241,9 @@ class Vimba(object):
         Initialize the VimbaC API.
         """
         # Vimba DLL will return an error code
+        print('vimba.startup')
         errorCode = VimbaDLL.startup()
+        print('errorCode =', errorCode)
         if errorCode != 0:
             raise VimbaException(errorCode)
 

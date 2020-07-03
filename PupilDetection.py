@@ -41,13 +41,13 @@ class PupilDetection:
 		# print('np.quantile(grayBlur, 0.5) =', np.quantile(grayBlur, 0.5))
 		retval, threshold = cv2.threshold(grayBlur, np.quantile(grayBlur, pupilFrac)+5, 255, 0)
 
-		# cv2.imshow("threshold", threshold)
+		#cv2.imshow("threshold", threshold)
 
 		#cleans up threshold image
 		# closed = threshold
 		closed = cv2.erode(cv2.dilate(threshold, self.kernel, iterations=1), self.kernel, iterations=1)
 
-		# cv2.imshow("closed", closed)
+		#cv2.imshow("closed", closed)
 
 
 		threshold, contours, hierarchy = cv2.findContours(closed, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
