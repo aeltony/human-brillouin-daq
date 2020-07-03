@@ -68,6 +68,13 @@ class Andor:
     def Initialize(self):
         error = self.dll.AT_Open(0, byref(self.handle))
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
+        # Create buffer for Andor DLL image acquisition
+        self.im_size = self.GetImageSize()
+        self.buffer_size = self.im_size.value
+        c_int32_p = POINTER(c_int32)
+        imageBuffer = np.array([0 for i in range(self.buffer_size*2)])
+        imageBuffer = imageBuffer.astype(np.int32)
+        self.imageBufferPointer = imageBuffer.ctypes.data_as(c_int32_p)
         return ERROR_CODE[error]
         
     def ShutDown(self):
@@ -167,14 +174,7 @@ class Andor:
         return ERROR_CODE[error]
 
     def StartAcquisition(self):
-        im_size = self.GetImageSize()
-        buffer_size = im_size.value
-        # Buffer for Andor DLL image acquisition
-        c_int32_p = POINTER(c_int32)
-        imageBuffer = np.array([0 for i in range(buffer_size*2)])
-        imageBuffer = imageBuffer.astype(np.int32)
-        self.imageBufferPointer = imageBuffer.ctypes.data_as(c_int32_p)
-        error = self.dll.AT_QueueBuffer(self.handle, self.imageBufferPointer, buffer_size)
+        error = self.dll.AT_QueueBuffer(self.handle, self.imageBufferPointer, self.buffer_size)
         print('Queue buffer error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         # Start acquisition
@@ -182,7 +182,7 @@ class Andor:
         print('Start acq error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         # Wait for frame to be available
-        error = self.dll.AT_WaitBuffer(self.handle, byref(self.imageBufferPointer), byref(im_size), 10000)
+        error = self.dll.AT_WaitBuffer(self.handle, byref(self.imageBufferPointer), byref(self.im_size), 10000)
         print('Wait buffer error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         # Stop acquisition

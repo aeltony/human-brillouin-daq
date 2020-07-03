@@ -1,16 +1,10 @@
 #import BrillouinDevice
-
 from PyQt5 import QtGui,QtCore
 from PyQt5.QtCore import pyqtSignal
-
 from ctypes import *
 
-
 # ShutterDevice does not need to run in its own thread, so we don't implement a getData() method
-# TODO: set the USB code in config file
 class ShutterDevice:
-
-	dll = WinDLL("C:\\Program Files (x86)\\Picard Industries\\USB Quad Shutter\\x64\\PiUsb")
 
 	usbObjCode = 384	# Objective shutter
 	usbRefCode = 338	# Reference shutter
@@ -21,20 +15,16 @@ class ShutterDevice:
 	OPEN_STATE = (1, 1)
 
 	def __init__(self, app, state=None):
-		self.c2 = c_int()
-		self.c4 = c_int()
-		self.s2 = c_int()
-		self.s4 = c_int()
 		error = c_int()
+		self.dll = WinDLL("C:\\Program Files (x86)\\Picard Industries\\USB Quad Shutter\\x64\\PiUsb")
 
-		#connecting to shutters - 312 (objective) and 314(reference)
-		self.usbObj = ShutterDevice.dll.piConnectShutter(byref(error), ShutterDevice.usbObjCode)
-		print('Error?', error.value)
-		self.usbRef = ShutterDevice.dll.piConnectShutter(byref(error), ShutterDevice.usbRefCode)
-		print('Error?', error.value)
-
-		print('self.usbObj =', self.usbObj)
-		print('self.usbRef =', self.usbRef)
+		#connecting to shutters
+		self.usbObj = c_long(self.dll.piConnectShutter(byref(error), ShutterDevice.usbObjCode))
+		if error.value > 0:
+			print('Failed to connect to shutter')
+		self.usbRef = c_long(self.dll.piConnectShutter(byref(error), ShutterDevice.usbRefCode))
+		if error.value > 0:
+			print('Failed to connect to shutter')
 
 		if (state == None):
 			state = ShutterDevice.SAMPLE_STATE
@@ -43,23 +33,20 @@ class ShutterDevice:
 		self.state = state
 
 	def shutdown(self):
-		#ShutterDevice.dll.piDisconnectShutter(self.usbObj)
-		#ShutterDevice.dll.piDisconnectShutter(self.usbRef)
+		self.dll.piDisconnectShutter(byref(self.usbObj))
+		self.dll.piDisconnectShutter(byref(self.usbRef))
 		print("[ShutterDevice] Closed")
 		
 	# state is a tuple of (Objective, Reference)
 	def setShutterState(self, state):
-		#ShutterDevice.dll.piSetShutterState(state[0], self.usbObj)
-		#ShutterDevice.dll.piSetShutterState(state[1], self.usbRef)
+		self.dll.piSetShutterState(state[0], byref(self.usbObj))
+		self.dll.piSetShutterState(state[1], byref(self.usbRef))
 		self.state = state
 		print("[ShutterDevice] (ObjShutter, RefShutter) = (%d, %d)" % (state[0], state[1]))
 
 	def getShutterState(self):
-		#objState = ShutterDevice.dll.piGetShutterState(byref(self.s2), self.usbObj)
-		#refState = ShutterDevice.dll.piGetShutterState(byref(self.s4), self.usbRef)
-		#print('self.s2.value =', self.s2.value)
-		objState = 0
-		refState = 1
+		objState = self.dll.piGetShutterState(byref(self.error), byref(self.usbObj))
+		refState = self.dll.piGetShutterState(byref(self.error), byref(self.usbRef))
 		return (objState, refState)
 
 ERROR_CODE = {
