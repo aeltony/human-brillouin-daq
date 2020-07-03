@@ -68,6 +68,8 @@ class Andor:
     def Initialize(self):
         error = self.dll.AT_Open(0, byref(self.handle))
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
+        self.GetCameraSerialNumber()
+        print(print("[AndorDevice] sCMOS camera found: ",self.serial))
         # Create buffer for Andor DLL image acquisition
         self.im_size = self.GetImageSize()
         self.buffer_size = self.im_size.value
@@ -182,7 +184,7 @@ class Andor:
         print('Start acq error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         # Wait for frame to be available
-        error = self.dll.AT_WaitBuffer(self.handle, byref(self.imageBufferPointer), byref(self.im_size), 10000)
+        error = self.dll.AT_WaitBuffer(self.handle, byref(self.imageBufferPointer), byref(self.im_size), 100000)
         print('Wait buffer error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         # Stop acquisition

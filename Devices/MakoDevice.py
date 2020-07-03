@@ -50,7 +50,6 @@ class MakoDevice(Devices.BrillouinDevice.Device):
     # set up default parameters
     def set_up(self):
         self.vimba.startup()
-        print('vimba startup() done')
         system = self.vimba.getSystem()
 
         if system.GeVTLIsPresent:
@@ -58,7 +57,7 @@ class MakoDevice(Devices.BrillouinDevice.Device):
             time.sleep(0.2)
         camera_ids = self.vimba.getCameraIds()
 
-        print("CMOS camera found: ",camera_ids)
+        print("[MakoDevice] CMOS camera found: ",camera_ids)
         self.camera = self.vimba.getCamera(camera_ids[0])
 
         self.camera.openCamera()

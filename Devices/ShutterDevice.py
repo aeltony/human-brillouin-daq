@@ -20,15 +20,14 @@ class ShutterDevice:
 
 		#connecting to shutters
 		self.usbObj = c_long(self.dll.piConnectShutter(byref(error), ShutterDevice.usbObjCode))
-		if error.value > 0:
-			print('Failed to connect to shutter')
+		if error.value != 0:
+			print('[ShutterDevice] Failed to connect to shutter')
 		self.usbRef = c_long(self.dll.piConnectShutter(byref(error), ShutterDevice.usbRefCode))
-		if error.value > 0:
-			print('Failed to connect to shutter')
+		if error.value != 0:
+			print('[ShutterDevice] Failed to connect to shutter')
 
 		if (state == None):
 			state = ShutterDevice.SAMPLE_STATE
-		print('Initializing shutter state')
 		self.setShutterState(state)
 		self.state = state
 

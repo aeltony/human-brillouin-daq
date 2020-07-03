@@ -241,9 +241,7 @@ class Vimba(object):
         Initialize the VimbaC API.
         """
         # Vimba DLL will return an error code
-        print('vimba.startup')
         errorCode = VimbaDLL.startup()
-        print('errorCode =', errorCode)
         if errorCode != 0:
             raise VimbaException(errorCode)
 

@@ -17,7 +17,7 @@ from pyqtgraph.parametertree import Parameter, ParameterTree, ParameterItem, reg
 from pyqtgraphCustomize import *
 import qt_ui # UI import
 from ctypes import *
-from configparser import SafeConfigParser
+from configparser import ConfigParser
 from Devices.AndorDevice import AndorDevice, AndorProcessFreerun
 from Devices.MakoDevice import MakoDevice, MakoFreerun
 from Devices.TempSensorDevice import TempSensorDevice, TempSensorFreerun
@@ -53,7 +53,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
         # load default/save parameter first
         self.configFilename = 'BrillouinScanConfig.ini'
-        self.configParser = SafeConfigParser()
+        self.configParser = ConfigParser()
         self.configParser.read(self.configFilename)
         # TODO: validate configuration file, set defaults if configuration file is corrupted or unavailable
         self.waterConst = np.empty(3)
