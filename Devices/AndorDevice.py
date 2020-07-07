@@ -19,7 +19,7 @@ class AndorDevice(Devices.BrillouinDevice.Device):
         super(AndorDevice, self).__init__(stop_event)   #runMode=0 default
         self.deviceName = "Andor"
         self.cam = Andor()
-        self.cam.SetVerbose(True)
+        self.cam.SetVerbose(False)
         self.cam.Initialize()
         self.set_up()
         self.andor_lock = app.andor_lock
@@ -52,7 +52,7 @@ class AndorDevice(Devices.BrillouinDevice.Device):
         self.cam.GetTemperature()
         while self.cam.temperature > 5:
             self.cam.GetTemperature()
-            print("[AndorDevice] EMCCD cooling down, current T: ",self.cam.temperature,"C")
+            print("[AndorDevice] Camera cooling down, current T: ",self.cam.temperature,"C")
             time.sleep(1)
         
 
@@ -128,12 +128,12 @@ class AndorDevice(Devices.BrillouinDevice.Device):
         self.cam.SetExposureTime(exposureTime)
         print("[AndorDevice] Exposure set to %f s" % exposureTime)
 
-    def setTemperature(self, desiredTemp):
-        if (desiredTemp < 0 or desiredTemp > 20):
-            print("[AndorDevice/setTemperature] Temperature out of range")
-            return
-        self.changeSetting(self.andor_lock, lambda:self.cam.SetTemperature(int(desiredTemp)))
-        print("[AndorDevice] Temperature set to %d" % desiredTemp)
+    #def setTemperature(self, desiredTemp):
+    #    if (desiredTemp < 0 or desiredTemp > 20):
+    #        print("[AndorDevice/setTemperature] Temperature out of range")
+    #        return
+    #    self.changeSetting(self.andor_lock, lambda:self.cam.SetTemperature(int(desiredTemp)))
+    #    print("[AndorDevice] Temperature set to %d" % desiredTemp)
 
     def getTemperature(self):
         temp = self.getAndorSetting(self.cam.GetTemperature, 'temperature')

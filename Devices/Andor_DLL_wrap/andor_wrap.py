@@ -19,10 +19,12 @@ from timeit import default_timer as default_timer   #debugging
 
 class Andor:
     def __init__(self):
-        self.verbosity   = True
+        self.verbosity   = False
         # Load library for Windows
-        self.dll = WinDLL('C:\\Users\\Mandelstam\\Source\Repos\\human-brillouin-daq\\Devices\\Andor_DLL_wrap\\atcore')
-        self.utildll = WinDLL('C:\\Users\\Mandelstam\\Source\Repos\\human-brillouin-daq\\Devices\\Andor_DLL_wrap\\atutility')
+        #self.dll = WinDLL('C:\\Users\\Mandelstam\\Source\Repos\\human-brillouin-daq\\Devices\\Andor_DLL_wrap\\atcore')
+        #self.utildll = WinDLL('C:\\Users\\Mandelstam\\Source\Repos\\human-brillouin-daq\\Devices\\Andor_DLL_wrap\\atutility')
+        self.dll = WinDLL('C:\\Program Files\\Andor SDK3\\atcore')
+        self.utildll = WinDLL('C:\\Program Files\\Andor SDK3\\atutility')
         error = self.dll.AT_InitialiseLibrary('')
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         error = self.utildll.AT_InitialiseUtilityLibrary('')
@@ -69,7 +71,7 @@ class Andor:
         error = self.dll.AT_Open(0, byref(self.handle))
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         self.GetCameraSerialNumber()
-        print(print("[AndorDevice] sCMOS camera found: ",self.serial))
+        print(print("[AndorDevice] Zyla sCMOS camera found: ",self.serial))
         # Create buffer for Andor DLL image acquisition
         self.im_size = self.GetImageSize()
         self.buffer_size = self.im_size.value
@@ -177,19 +179,23 @@ class Andor:
 
     def StartAcquisition(self):
         error = self.dll.AT_QueueBuffer(self.handle, self.imageBufferPointer, self.buffer_size)
-        print('Queue buffer error =', error)
+        if error != 0:
+            print('Queue buffer error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         # Start acquisition
         error = self.dll.AT_Command(self.handle, 'AcquisitionStart')
-        print('Start acq error =', error)
+        if error != 0:
+            print('Start acq error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         # Wait for frame to be available
         error = self.dll.AT_WaitBuffer(self.handle, byref(self.imageBufferPointer), byref(self.im_size), 100000)
-        print('Wait buffer error =', error)
+        if error != 0:
+            print('Wait buffer error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         # Stop acquisition
         error = self.dll.AT_Command(self.handle, 'AcquisitionStop')
-        print('Stop acq error =', error)
+        if error != 0:
+            print('Stop acq error =', error)
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         return ERROR_CODE[error]
 
@@ -208,12 +214,12 @@ class Andor:
     # modified to just assign data to a pre-allocated array
     def GetAcquiredData2(self,imageArrayPointer):      
         stride = self.GetStride()
-        startTime = default_timer()                                     
+        #startTime = default_timer()                                     
         # Remove padding
         error = self.utildll.AT_ConvertBuffer(self.imageBufferPointer, imageArrayPointer, self.width, self.height, stride, u'Mono32', u'Mono32')
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
-        endTime = default_timer()    
-        print("Andor conversion time = %.3f" % (endTime - startTime))
+        #endTime = default_timer()    
+        #print("Andor conversion time = %.3f" % (endTime - startTime))
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         return ERROR_CODE[error]
 

@@ -74,12 +74,12 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.params = [
             {'name': 'Scan', 'type': 'group', 'children': [
                 {'name': 'Start Position', 'type': 'float', 'value': -500, 'suffix':' um', 'step': 100, 'limits': (-5000, 5000)},
-                {'name': 'Step size', 'type': 'float', 'value': 30, 'suffix':' um', 'step': 1, 'limits': (0, 1000), 'decimals':5},
-                {'name': 'Frame number', 'type': 'int', 'value': 40, 'step': 1, 'limits':(1, 2000)},
+                {'name': 'Step Size', 'type': 'float', 'value': 30, 'suffix':' um', 'step': 1, 'limits': (0, 1000), 'decimals':5},
+                {'name': 'Frame Number', 'type': 'int', 'value': 40, 'step': 1, 'limits':(1, 2000)},
                 {'name': 'End Position', 'type': 'float', 'value': 1200, 'suffix':' um', 'readonly': True, 'decimals':5},
-                {'name': 'Ref temperature', 'type': 'float', 'value': 0.0, 'suffix':' deg. C', 'readonly':True, 'decimals':4},
-                {'name': 'Ref FSR', 'type': 'float', 'value':16.25, 'suffix':' GHz', 'limits':(5, 100), 'decimals':6}, 
-                {'name': 'Ref SD', 'type': 'float', 'value':0.1, 'suffix':' GHz/px', 'limits':(0, 2), 'decimals':4}, 
+                {'name': 'Ambient Temp.', 'type': 'float', 'value': 0.0, 'suffix':' deg. C', 'readonly':True, 'decimals':4},
+                {'name': 'Ref. FSR', 'type': 'float', 'value':16.25, 'suffix':' GHz', 'limits':(5, 100), 'decimals':6}, 
+                {'name': 'Ref. SD', 'type': 'float', 'value':0.1, 'suffix':' GHz/px', 'limits':(0, 2), 'decimals':4}, 
                 {'name': 'ToggleReference', 'type':'toggle', 'ButtonText':('Switch to Reference', 'Switch to Sample')},         #False=Sampe="Switch to Ref"
                 {'name': 'Scan/Cancel', 'type': 'action2', 'ButtonText':('Scan', 'Cancel')},
                 # {'name': 'Scan', 'type':'action'},
@@ -98,10 +98,9 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                 {'name': 'Jog', 'type': 'action2', 'ButtonText':('Jog Forward', 'Jog Backward')},
                 {'name': 'Move/Home', 'type':'action2', 'ButtonText':('Move', 'Home')}
             ]},
-            {'name': 'EMCCD', 'type': 'group', 'children': [
+            {'name': 'Spectrometer Camera', 'type': 'group', 'children': [
                 {'name': 'AutoExposure', 'type':'toggle', 'ButtonText':('Auto exposure', 'Fixed exposure')},         #False=Fixed exposure
-                {'name': 'Desired Temperature', 'type': 'float', 'value': -120, 'suffix':' C', 'step': 1, 'limits': (-120, 30)},
-                {'name': 'Current Temperature', 'type': 'float', 'value':0, 'suffix':' C', 'readonly': True},
+                {'name': 'Camera Temp.', 'type': 'float', 'value':0, 'suffix':' C', 'readonly': True},
                 {'name': 'Exposure', 'type':'float', 'value':0.3, 'suffix':' s', 'step':0.05, 'limits':(0.01, 10)},
                 {'name': 'Ref. Exposure', 'type':'float', 'value':1.0, 'suffix':' s', 'step':0.05, 'limits':(0.01, 10)},
                 {'name': 'Spectrum Column', 'type':'int', 'value': spectCenter, 'suffix':' px', 'step':1, 'limits':(0, 512)},
@@ -109,7 +108,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             ]},        
             {'name': 'Pupil Camera', 'type': 'group', 'children': [
                 {'name': 'Pupil Radius', 'type': 'float', 'value': pupilRadius, 'suffix':' px', 'step': 5, 'limits': (1, 1000)},
-                {'name': 'Scale factor', 'type': 'float', 'value': 0.02, 'suffix':' (mm/px)', 'step': 0.001, 'limits': (0, 1)},
+                {'name': 'Scale Factor', 'type': 'float', 'value': 0.02, 'suffix':' (mm/px)', 'step': 0.001, 'limits': (0, 1)},
                 {'name': 'Frame Rate', 'type': 'int', 'value': 5, 'limits':(2, 20)}
                 # {'name': 'Take Picture', 'type': 'float', 'value': -60, 'step': 1, 'limits': (-80, 30)},
                 # {'name': 'Take Video', 'type': 'float', 'value':0, 'readonly': True},
@@ -125,9 +124,9 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             self.CMOSvLineValueChange)
         self.allParameters.child('Scan').child('More Settings').child('Laser Focus Y').sigValueChanging.connect(
             self.CMOShLineValueChange)
-        self.allParameters.child('EMCCD').child('Spectrum Column').sigValueChanged.connect(
+        self.allParameters.child('Spectrometer Camera').child('Spectrum Column').sigValueChanged.connect(
             self.spectCenterValueChange)
-        self.allParameters.child('EMCCD').child('Spectrum Row').sigValueChanged.connect(
+        self.allParameters.child('Spectrometer Camera').child('Spectrum Row').sigValueChanged.connect(
             self.slineIdxValueChange)
         self.allParameters.child('Pupil Camera').child('Pupil Radius').sigValueChanged.connect(
             self.pupilRadiusValueChange)
@@ -165,7 +164,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
         self.TempSensorDeviceThread = TempSensorDevice(self.stop_event, self)
         self.TempSensorProcessThread = TempSensorFreerun(self.TempSensorDeviceThread, self.stop_event)
-        self.TempSensorProcessThread.updateTempSeqSig.connect(self.UpdateRefTemp)
+        self.TempSensorProcessThread.updateTempSeqSig.connect(self.UpdateAmbientTemp)
         self.TempSensorDeviceThread.start()
         self.TempSensorProcessThread.start()
 
@@ -230,7 +229,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.graphicsViewHeatmap.setCentralItem(self.heatmapPlot)     # GraphicsView is the main graphics container
         self.heatmapScatter = pg.ScatterPlotItem(size=10, pen=pg.mkPen(None), brush=pg.mkBrush(0, 0, 0, 180))
         self.heatmapImage = pg.ImageItem(self.blankHeatmap)
-        scaleFactor = self.allParameters.child('Pupil Camera').child('Scale factor').value()
+        scaleFactor = self.allParameters.child('Pupil Camera').child('Scale Factor').value()
         self.heatmapImage.setLookupTable(self.colormap.getLookupTable())
         self.heatmapImage.translate(-0.5*M*scaleFactor, -0.5*N*scaleFactor)
         self.heatmapImage.scale(scaleFactor, scaleFactor)
@@ -402,8 +401,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.mainUI()
 
         self.MakoProcessThread.pupilRadius = self.allParameters.child('Pupil Camera').child('Pupil Radius').value()
-        self.AndorProcessThread.spectCenter = self.allParameters.child('EMCCD').child('Spectrum Column').value()
-        self.AndorProcessThread.slineIdx = self.allParameters.child('EMCCD').child('Spectrum Row').value()
+        self.AndorProcessThread.spectCenter = self.allParameters.child('Spectrometer Camera').child('Spectrum Column').value()
+        self.AndorProcessThread.slineIdx = self.allParameters.child('Spectrometer Camera').child('Spectrum Row').value()
         self.AndorDeviceThread.start()
         self.AndorDeviceThread.setPriority(QtCore.QThread.TimeCriticalPriority)
         self.AndorProcessThread.start()
@@ -444,13 +443,13 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
     def spectCenterValueChange(self, param, value):
         # print("[spectCenterValueChange]")
-        self.AndorProcessThread.spectCenter = self.allParameters.child('EMCCD').child('Spectrum Column').value()
+        self.AndorProcessThread.spectCenter = self.allParameters.child('Spectrometer Camera').child('Spectrum Column').value()
         self.configParser.set('Andor', 'spectCenter', str(int(value)))
         with open(self.configFilename, 'w') as f:
             self.configParser.write(f)
 
     def slineIdxValueChange(self, param, value):
-        self.AndorProcessThread.slineIdx = self.allParameters.child('EMCCD').child('Spectrum Row').value()
+        self.AndorProcessThread.slineIdx = self.allParameters.child('Spectrometer Camera').child('Spectrum Row').value()
         self.configParser.set('Andor', 'slineIdx', str(int(value)))
         with open(self.configFilename, 'w') as f:
             self.configParser.write(f)
@@ -469,11 +468,9 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         # print("[InitHardwareParameterTree]")
 
         # ========================= EMCCD ================================
-        pItem = self.allParameters.child('EMCCD')
+        pItem = self.allParameters.child('Spectrometer Camera')
         pItem.child('AutoExposure').sigActivated.connect(self.switchAutoExp)
-        pItem.child('Desired Temperature').sigValueChanged. \
-            connect(lambda data: self.changeHardwareSetting(data, self.AndorDeviceThread.setTemperature))
-        pItem.child('Current Temperature').setValue(self.AndorDeviceThread.getTemperature())
+        pItem.child('Camera Temp.').setValue(self.AndorDeviceThread.getTemperature())
         pItem.child('Exposure').sigValueChanged.connect(
             lambda data: self.changeHardwareSetting(data, self.AndorDeviceThread.setExposure))
         pItem.child('Exposure').setValue(self.AndorDeviceThread.getExposure())
@@ -501,15 +498,15 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         # ========================= Scan ===================
         pItem = self.allParameters.child('Scan')
         startPos = pItem.child('Start Position').value()
-        stepSize = pItem.child('Step size').value()
-        frameNum = pItem.child('Frame number').value()
+        stepSize = pItem.child('Step Size').value()
+        frameNum = pItem.child('Frame Number').value()
         endPos = startPos + stepSize * frameNum
         pItem.child('End Position').setValue(endPos)
         pItem.child('Scan/Cancel').sigActivated.connect(self.startScan)
         pItem.child('Scan/Cancel').sigActivated2.connect(self.cancelScan)
         pItem.child('Start Position').sigValueChanging.connect(lambda param, value: self.updateScanEndPos(0, param, value))
-        pItem.child('Step size').sigValueChanging.connect(lambda param, value: self.updateScanEndPos(1, param, value))
-        pItem.child('Frame number').sigValueChanging.connect(lambda param, value: self.updateScanEndPos(2, param, value))
+        pItem.child('Step Size').sigValueChanging.connect(lambda param, value: self.updateScanEndPos(1, param, value))
+        pItem.child('Frame Number').sigValueChanging.connect(lambda param, value: self.updateScanEndPos(2, param, value))
 
         # ========================= Sample/Reference ===================
         pItem = self.allParameters.child('Scan')
@@ -533,17 +530,17 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
     def HardwareParamUpdate(self):
         # print("[HardwareParamUpdate]")
         temp = self.AndorDeviceThread.getTemperature()
-        self.allParameters.child('EMCCD').child('Current Temperature').setValue(temp)
+        self.allParameters.child('Spectrometer Camera').child('Camera Temp.').setValue(temp)
         # if (self.ShutterDevice.state == ShutterDevice.SAMPLE_STATE):
             # expTime = self.AndorDeviceThread.getExposure()
-            # self.allParameters.child('EMCCD').child('Exposure').setValue(expTime)
+            # self.allParameters.child('Spectrometer Camera').child('Exposure').setValue(expTime)
 
     def updateScanEndPos(self, updateIndex, param, value):
         # print("[updateScanEndPos]")
         pItem = self.allParameters.child('Scan')
         startPos = pItem.child('Start Position').value()
-        stepSize = pItem.child('Step size').value()
-        frameNum = pItem.child('Frame number').value()
+        stepSize = pItem.child('Step Size').value()
+        frameNum = pItem.child('Frame Number').value()
         if (updateIndex == 0):
             startPos = value
         elif (updateIndex == 1):
@@ -592,13 +589,13 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         flattenedParamList = generateParameterList(self.params, self.allParameters)
 
         scanSettings = {'start': self.allParameters.child('Scan').child('Start Position').value(),  
-            'step': self.allParameters.child('Scan').child('Step size').value(),   
-            'frames': self.allParameters.child('Scan').child('Frame number').value(),
+            'step': self.allParameters.child('Scan').child('Step Size').value(),   
+            'frames': self.allParameters.child('Scan').child('Frame Number').value(),
             'laserX': self.allParameters.child('Scan').child('More Settings').child('Laser Focus X').value(),
             'laserY': self.allParameters.child('Scan').child('More Settings').child('Laser Focus Y').value(),
-            'scaleFactor': self.allParameters.child('Pupil Camera').child('Scale factor').value(),
-            'refExp': self.allParameters.child('EMCCD').child('Ref. Exposure').value(),
-            'sampleExp': self.allParameters.child('EMCCD').child('Exposure').value(),
+            'scaleFactor': self.allParameters.child('Pupil Camera').child('Scale Factor').value(),
+            'refExp': self.allParameters.child('Spectrometer Camera').child('Ref. Exposure').value(),
+            'sampleExp': self.allParameters.child('Spectrometer Camera').child('Exposure').value(),
             'waterConst': self.waterConst, 'plasticConst': self.plasticConst,
             'screenshot': screenshotArr,
             'flattenedParamList': flattenedParamList }
@@ -651,20 +648,20 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         # state == False --> sample
         if state:
             self.ShutterDevice.setShutterState(self.ShutterDevice.REFERENCE_STATE)
-            self.AndorDeviceThread.setExposure(self.allParameters.child('EMCCD').child('Ref. Exposure').value())
+            self.AndorDeviceThread.setExposure(self.allParameters.child('Spectrometer Camera').child('Ref. Exposure').value())
         else:
             self.ShutterDevice.setShutterState(self.ShutterDevice.SAMPLE_STATE)
-            self.AndorDeviceThread.setExposure(self.allParameters.child('EMCCD').child('Exposure').value())
+            self.AndorDeviceThread.setExposure(self.allParameters.child('Spectrometer Camera').child('Exposure').value())
 
     def switchAutoExp(self, sliderParam, state):
         if state:
             self.AndorDeviceThread.setAutoExp(True)
-            print("EMCCD auto exposure ON")
+            print("Spectrometer auto exposure ON")
         else:
             self.AndorDeviceThread.setAutoExp(False)
-            self.AndorDeviceThread.setExposure(self.allParameters.child('EMCCD').child('Exposure').value())
-            print("EMCCD auto exposure OFF")
-            # self.AndorDeviceThread.setExposure(self.allParameters.child('EMCCD').child('Exposure').value())
+            self.AndorDeviceThread.setExposure(self.allParameters.child('Spectrometer Camera').child('Exposure').value())
+            print("Spectrometer auto exposure OFF")
+            # self.AndorDeviceThread.setExposure(self.allParameters.child('Spectrometer Camera').child('Exposure').value())
 
     #############################################################################################
     # This next group of methods callback methods to display acquired data #
@@ -738,7 +735,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             lastClicked = self.heatmapScatterLastClicked_recording
             heatmapImage = self.heatmapImage_recording
 
-        scaleFactor = self.allParameters.child('Pupil Camera').child('Scale factor').value()
+        scaleFactor = self.allParameters.child('Pupil Camera').child('Scale Factor').value()
         scanPointsMM = scaleFactor*scanPoints
         BSArr = (np.transpose(np.array([BS])))[:,0]
         cleanDatInd = (np.argwhere(~np.isnan(BSArr)))[:,0] # Remove NaNs
@@ -797,16 +794,16 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         else:
             lastClicked[:] = []
 
-    def UpdateRefTemp(self, temperature):
-        # print('UpdateRefTemp')
-        self.allParameters.child('Scan').child('Ref temperature').setValue(temperature)
+    def UpdateAmbientTemp(self, temperature):
+        # print('UpdateAmbientTemp')
+        self.allParameters.child('Scan').child('Ambient Temp.').setValue(temperature)
 
     # updates the figure containing the Brillouin sequence. newData is a list
     def UpdateBrillouinSeqPlot(self, interPeakDist):
         # print("[UpdateBrillouinSeqPlot]")
-        SD = self.allParameters.child('Scan').child('Ref SD').value()
-        FSR = self.allParameters.child('Scan').child('Ref FSR').value()
-        T = self.allParameters.child('Scan').child('Ref temperature').value()
+        SD = self.allParameters.child('Scan').child('Ref. SD').value()
+        FSR = self.allParameters.child('Scan').child('Ref. FSR').value()
+        T = self.allParameters.child('Scan').child('Ambient Temp.').value()
 
         if len(interPeakDist)==2:
             newData = [0.5*(FSR - SD*interPeakDist[1])]
@@ -819,8 +816,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                 PlasticBS = 16.3291 - (self.plasticConst[0]*T*T + self.plasticConst[1]*T + self.plasticConst[2])
                 SD = 2*(PlasticBS - WaterBS)/(interPeakDist[1] + interPeakDist[2])
                 FSR = 2*WaterBS + interPeakDist[1]*SD
-                self.allParameters.child('Scan').child('Ref SD').setValue(SD)
-                self.allParameters.child('Scan').child('Ref FSR').setValue(FSR)
+                self.allParameters.child('Scan').child('Ref. SD').setValue(SD)
+                self.allParameters.child('Scan').child('Ref. FSR').setValue(FSR)
             newData = [0.5*(FSR - SD*interPeakDist[1])]
             newData2 = [0.5*(FSR - SD*interPeakDist[2])]
         else:
