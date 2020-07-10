@@ -275,8 +275,8 @@ class ScanData:
 	# these are hdf5 dataset
 	# Ensure these variables are assigned 
 	savedDataset = ['CMOSImage',
-					'EMCCDImage',
-					'EMCCDDisplay',
+					'SampleImage',
+					'SampleDisplay',
 					'CalImage',
 					'RawSpecList',
 					'FitSpecList',

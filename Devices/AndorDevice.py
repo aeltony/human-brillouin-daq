@@ -9,7 +9,7 @@ from PyQt5 import QtGui,QtCore
 from PyQt5.QtCore import pyqtSignal
 
 # This is one of the main devices. It simply acquires a single set of data 
-# from the Andor EMCCD when the condition AndorDevice.continueEvent() is 
+# from the Andor device when the condition AndorDevice.continueEvent() is 
 # set from a managing class. 
 
 class AndorDevice(Devices.BrillouinDevice.Device):
@@ -149,83 +149,134 @@ class AndorDevice(Devices.BrillouinDevice.Device):
 # It has a handle to the Andor device which has the data queue containing
 # raw frames from the camera
 class AndorProcessFreerun(Devices.BrillouinDevice.DeviceProcess):
-    updateBrillouinSeqSig = pyqtSignal('PyQt_PyObject')
-    updateSpectrum = pyqtSignal('PyQt_PyObject')
-    updateEMCCDImageSig = pyqtSignal('PyQt_PyObject')
+    updateSampleBrillouinSeqSig = pyqtSignal('PyQt_PyObject')
+    updateCalibBrillouinSeqSig = pyqtSignal('PyQt_PyObject')
+    updateSampleSpectrum = pyqtSignal('PyQt_PyObject')
+    updateCalibSpectrum = pyqtSignal('PyQt_PyObject')
+    updateSampleImageSig = pyqtSignal('PyQt_PyObject')
+    updateCalibImageSig = pyqtSignal('PyQt_PyObject')
 
     def __init__(self, device, stopProcessingEvent, finishedTrigger = None):
         super(AndorProcessFreerun, self).__init__(device, stopProcessingEvent, finishedTrigger)
 
-        self._spectCenter = 255 # default value
-        self._slineIdx = 32 # default value
+        self._channel = False # True = reference, False = sample
+        self._sampleSpectCenter = 255 # default value
+        self._sampleSlineIdx = 32 # default value
+        self._calibSpectCenter = 100 # default value
+        self._calibSlineIdx = 32 # default value
+
         self.cropHeight = 3 # typical: 3
         self.cropWidth = 50 # typical: 50
 
     @property
-    def spectCenter(self):
+    def channel(self):
         with self.flagLock:
-            return self._spectCenter
+            return self._channel
 
-    # you can use spectCenter as if it were a class attribute, e.g.
-    # pixel = self.spectCenter
-    # self.spectCenter = spectrumCenter
-    @spectCenter.setter
-    def spectCenter(self, spectrumCenter):
+    @channel.setter
+    def channel(self, channel):
         with self.flagLock:
-            self._spectCenter = spectrumCenter
+            self._channel = channel
 
     @property
-    def slineIdx(self):
+    def sampleSpectCenter(self):
         with self.flagLock:
-            return self._slineIdx
+            return self._sampleSpectCenter
 
-    @slineIdx.setter
-    def slineIdx(self, slineIndex):
+    # you can use sampleSpectCenter as if it were a class attribute, e.g.
+    # pixel = self.sampleSpectCenter
+    # self.sampleSpectCenter = spectrumCenter
+    @sampleSpectCenter.setter
+    def sampleSpectCenter(self, spectrumCenter):
         with self.flagLock:
-            self._slineIdx = slineIndex
+            self._sampleSpectCenter = spectrumCenter
+    @property
+    def calibSpectCenter(self):
+        with self.flagLock:
+            return self._calibSpectCenter
+
+    @calibSpectCenter.setter
+    def calibSpectCenter(self, spectrumCenter):
+        with self.flagLock:
+            self._calibSpectCenter = spectrumCenter
+
+    @property
+    def sampleSlineIdx(self):
+        with self.flagLock:
+            return self._sampleSlineIdx
+
+    @sampleSlineIdx.setter
+    def sampleSlineIdx(self, slineIndex):
+        with self.flagLock:
+            self._sampleSlineIdx = slineIndex
+
+    @property
+    def calibSlineIdx(self):
+        with self.flagLock:
+            return self._calibSlineIdx
+
+    @calibSlineIdx.setter
+    def calibSlineIdx(self, slineIndex):
+        with self.flagLock:
+            self._calibSlineIdx = slineIndex
 
     # data is an numpy array of type int32
     def doComputation(self, data):
         image_array = data[0] # np.array(data, dtype = np.uint16)
         exp_time = data[1]
-        print('exp_time = ', exp_time)
-
+        #print('exp_time = ', exp_time)
         maximum = image_array.max()
         proper_image = np.reshape(image_array, (-1, 2048))   # 2048 columns
         scaled_image = proper_image*(255.0/maximum)
         scaled_image = scaled_image.astype(int)
         scaled_8bit = np.array(scaled_image, dtype = np.uint8)
 
-        # Find spectral line
-        sline_idx = self.slineIdx
-        
-        if (sline_idx < self.cropHeight):
-            loc = self.cropHeight
-        elif (sline_idx >= proper_image.shape[0]-self.cropHeight):
-            loc = proper_image.shape[0]-self.cropHeight-1
+        if self.channel==False:
+            # Find spectral line
+            sline_idx = self.sampleSlineIdx
+            if (sline_idx < self.cropHeight):
+                loc = self.cropHeight
+            elif (sline_idx >= proper_image.shape[0]-self.cropHeight):
+                loc = proper_image.shape[0]-self.cropHeight-1
+            else:
+                loc = sline_idx
+            sline = proper_image[sline_idx, :]
+            mid = self.sampleSpectCenter
+            sline_crop = sline[mid-self.cropWidth:mid+self.cropWidth]
+            cropped = scaled_8bit[loc-self.cropHeight:loc+self.cropHeight+1, mid-self.cropWidth:mid+self.cropWidth]
+            self.image_andor = cropped
+            #image = imutils.resize(self.image_andor, width=1024)
+            image = cv2.resize(self.image_andor, (0,0), fx=1024/(2*self.cropWidth), fy=170/(2*self.cropHeight + 1), \
+                interpolation = cv2.INTER_NEAREST)
+            #### Fitting Brillouin spectrum
+            interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(sline_crop.astype(float)),1e-4,1e-4,50)
+            # emit signals for GUI to update in real time
+            self.updateSampleBrillouinSeqSig.emit(interPeakDist)
+            self.updateSampleSpectrum.emit((np.copy(sline_crop), np.copy(fittedSpect)))
+            self.updateSampleImageSig.emit(np.copy(image))
         else:
-            loc = sline_idx
-
-        sline = proper_image[sline_idx, :]
-
-        mid = self.spectCenter
-
-        sline_crop = sline[mid-self.cropWidth:mid+self.cropWidth]
-
-        cropped = scaled_8bit[loc-self.cropHeight:loc+self.cropHeight+1, mid-self.cropWidth:mid+self.cropWidth]
-
-        self.image_andor = cropped
-        #image = imutils.resize(self.image_andor, width=1024)
-        image = cv2.resize(self.image_andor, (0,0), fx=1024/(2*self.cropWidth), fy=170/(2*self.cropHeight + 1), \
-            interpolation = cv2.INTER_NEAREST)
-
-        #### Fitting Brillouin spectrum
-        interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(sline_crop.astype(float)),1e-4,1e-4,50)
-
-        # emit signals for GUI to update in real time
-        self.updateBrillouinSeqSig.emit(interPeakDist)
-        self.updateSpectrum.emit((np.copy(sline_crop), np.copy(fittedSpect)))
-        self.updateEMCCDImageSig.emit(np.copy(image))
+            # Find spectral line
+            sline_idx = self.calibSlineIdx
+            if (sline_idx < self.cropHeight):
+                loc = self.cropHeight
+            elif (sline_idx >= proper_image.shape[0]-self.cropHeight):
+                loc = proper_image.shape[0]-self.cropHeight-1
+            else:
+                loc = sline_idx
+            sline = proper_image[sline_idx, :]
+            mid = self.calibSpectCenter
+            sline_crop = sline[mid-self.cropWidth:mid+self.cropWidth]
+            cropped = scaled_8bit[loc-self.cropHeight:loc+self.cropHeight+1, mid-self.cropWidth:mid+self.cropWidth]
+            self.image_andor = cropped
+            #image = imutils.resize(self.image_andor, width=1024)
+            image = cv2.resize(self.image_andor, (0,0), fx=1024/(2*self.cropWidth), fy=170/(2*self.cropHeight + 1), \
+                interpolation = cv2.INTER_NEAREST)
+            #### Fitting Brillouin spectrum
+            interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(sline_crop.astype(float)),1e-4,1e-4,50)
+            # emit signals for GUI to update in real time
+            self.updateCalibBrillouinSeqSig.emit(interPeakDist)
+            self.updateCalibSpectrum.emit((np.copy(sline_crop), np.copy(fittedSpect)))
+            self.updateCalibImageSig.emit(np.copy(image))
 
         # return value is pushed into a Queue, which is collected by the ScanManager
         # for global processing (i.e. Brillouin value segmentation)

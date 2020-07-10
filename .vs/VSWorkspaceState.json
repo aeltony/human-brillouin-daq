@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
     "",
-    "\\Devices"
+    "\\Devices",
+    "\\pyqtgraph\\parametertree"
   ],
   "SelectedNode": "\\pyqt_app.py",
   "PreviewInSolutionExplorer": false

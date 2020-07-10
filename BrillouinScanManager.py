@@ -204,7 +204,7 @@ class ScanManager(QtCore.QThread):
 		CMOSImage = np.array(imageList)[:-5]
 
 		specImageList = [d[0] for d in dataset['Andor']]
-		EMCCDImage = np.array(specImageList)[:-5]
+		SampleImage = np.array(specImageList)[:-5]
 		CalImage = np.array(specImageList)[-5:]
 
 		maxRowList = [d[1] for d in dataset['Andor']]
@@ -212,7 +212,7 @@ class ScanManager(QtCore.QThread):
 		CalSpecList = np.array(maxRowList)[-5:]
 
 		dispImageList = [d[2] for d in dataset['Andor']]
-		EMCCDDisplay = np.array(dispImageList)
+		SampleDisplay = np.array(dispImageList)
 
 		expTimeList = [d[3] for d in dataset['Andor']]
 		RawTimeList = np.array(expTimeList)[:-5]
@@ -225,12 +225,12 @@ class ScanManager(QtCore.QThread):
 		lineScan.RawTempList = RawTempList
 		lineScan.CalTempList = CalTempList
 		# lineScan.generateTestData(k)
-		lineScan.EMCCDImage = EMCCDImage
+		lineScan.SampleImage = SampleImage
 		lineScan.CalImage = CalImage
 		lineScan.CMOSImage = CMOSImage
 		lineScan.RawSpecList = RawSpecList
 		lineScan.CalSpecList = CalSpecList
-		lineScan.EMCCDDisplay = EMCCDDisplay
+		lineScan.SampleDisplay = SampleDisplay
 		lineScan.RawTimeList = RawTimeList
 		lineScan.CalTimeList = CalTimeList
 		lineScan.screenshot = self.scanSettings['screenshot']
