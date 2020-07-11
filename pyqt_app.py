@@ -18,6 +18,7 @@ from pyqtgraphCustomize import *
 import qt_ui # UI import
 from ctypes import *
 from configparser import ConfigParser
+from Devices.SynthDevice import SynthDevice, SynthProcessFreerun
 from Devices.AndorDevice import AndorDevice, AndorProcessFreerun
 from Devices.MakoDevice import MakoDevice, MakoFreerun
 from Devices.TempSensorDevice import TempSensorDevice, TempSensorFreerun
@@ -66,6 +67,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.plasticConst[2] = self.configParser.getfloat('Calibration constants', 'p3')
         laserX = self.configParser.getint('Scan', 'laser_position_X')
         laserY = self.configParser.getint('Scan', 'laser_position_Y')
+        RFpower = self.configParser.getfloat('Synth', 'RFpower')
         sampleSpectCenter = self.configParser.getint('Andor', 'sampleSpectCenter')
         calibSpectCenter = self.configParser.getint('Andor', 'calibSpectCenter')
         sampleSlineIdx = self.configParser.getint('Andor', 'sampleSlineIdx')
@@ -91,14 +93,18 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                 ]}
             ]},
             {'name': 'Motor', 'type': 'group', 'children': [
-                {'name': 'Velocity', 'type': 'float', 'value': 26, 'suffix':' (mm/s)', 'step': 1, 'limits': (1, 26)},
-                {'name': 'Acceleration', 'type': 'float', 'value': 600, 'suffix':' (mm/s^2)', 'step': 10, 'limits': (1, 1000), 'decimals':4},
+                {'name': 'Velocity', 'type': 'float', 'value': 26, 'suffix':' mm/s', 'step': 1, 'limits': (1, 26)},
+                {'name': 'Acceleration', 'type': 'float', 'value': 600, 'suffix':' mm/s^2', 'step': 10, 'limits': (1, 1000), 'decimals':4},
                 {'name': 'Jog Step', 'type': 'float', 'value': 10, 'suffix':' um', 'step': 1, 'limits':(0.1, 500)},
                 {'name': 'Current Location', 'type': 'float', 'value':0, 'suffix':' um', 'readonly': True, 'decimals':5}, 
                 {'name': 'Move To Location', 'type': 'float', 'value':0, 'suffix':' um', 'limits':(-1000, 2000), 'decimals':5},
                 {'name': 'Jog', 'type': 'action2', 'ButtonText':('Jog Forward', 'Jog Backward')},
                 {'name': 'Move/Home', 'type':'action2', 'ButtonText':('Move', 'Home')}
             ]},
+            {'name': 'Microwave Source', 'type': 'group', 'children': [
+                {'name': 'RF Frequency', 'type': 'float', 'value': 5.0, 'suffix':' GHz', 'step': 0.1, 'limits': (0.05, 13.0), 'decimals':3},
+                {'name': 'RF Power', 'type': 'float', 'value': 1.0, 'suffix':' dBm', 'step': 0.5, 'limits': (-20, 10), 'decimals':1}
+             ]},
             {'name': 'Spectrometer Camera', 'type': 'group', 'children': [
                 {'name': 'AutoExposure', 'type':'toggle', 'ButtonText':('Auto exposure', 'Fixed exposure')},         #False=Fixed exposure
                 {'name': 'Camera Temp.', 'type': 'float', 'value':0, 'suffix':' C', 'readonly': True},
@@ -157,6 +163,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         #Lock used to halt other threads upon app closing
         self.stop_event = threading.Event()
         self.cancel_event = threading.Event()
+        self.synth_lock = threading.Lock()
         self.andor_lock = threading.Lock()
         self.mako_lock = threading.Lock()
         self.TempSensor_lock = threading.Lock()
@@ -174,6 +181,11 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.TempSensorProcessThread.updateTempSeqSig.connect(self.UpdateAmbientTemp)
         self.TempSensorDeviceThread.start()
         self.TempSensorProcessThread.start()
+
+        self.SynthDeviceThread = SynthDevice(self.stop_event, self)
+        self.SynthProcessThread = SynthProcessFreerun(self.SynthDeviceThread, self.stop_event)
+        self.SynthDeviceThread.start()
+        self.SynthProcessThread.start()
 
         self.ShutterDevice = ShutterDevice(self)    # Initialized to SAMPLE_STATE
 
@@ -486,6 +498,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.BrillouinScan.addToSequentialList(self.AndorDeviceThread, self.AndorProcessThread)
         self.BrillouinScan.addToSequentialList(self.MakoDeviceThread, self.MakoProcessThread)
         self.BrillouinScan.addToSequentialList(self.TempSensorDeviceThread, self.TempSensorProcessThread)
+        self.BrillouinScan.addToSequentialList(self.SynthDeviceThread, self.SynthProcessThread)
         self.BrillouinScan.finished.connect(self.onFinishScan)
         self.BrillouinScan.clearGUISig.connect(self.clearGUIElements)
 
@@ -555,6 +568,15 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         pItem.child('Exposure').sigValueChanged.connect(
             lambda data: self.changeHardwareSetting(data, self.AndorDeviceThread.setExposure))
         pItem.child('Exposure').setValue(self.AndorDeviceThread.getExposure())
+
+        # ========================= Microwave Source ================================
+        pItem = self.allParameters.child('Microwave Source')
+        pItem.child('RF Frequency').sigValueChanged.connect(
+            lambda data: self.changeHardwareSetting(data, self.SynthDeviceThread.setFreq))
+        pItem.child('RF Frequency').setValue(self.SynthDeviceThread.getFreq())
+        pItem.child('RF Power').sigValueChanged.connect(
+            lambda data: self.changeHardwareSetting(data, self.SynthDeviceThread.setPower))
+        pItem.child('RF Power').setValue(self.SynthDeviceThread.getPower())
 
         # ========================= Motor =================================
         pItem = self.allParameters.child('Motor')
@@ -1137,6 +1159,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.TempSensorDeviceThread.shutdown()
         self.ZaberDevice.shutdown()
         self.ShutterDevice.shutdown()
+        self.SynthDeviceThread.shutdown()
 
         event.accept() #closes the application
 

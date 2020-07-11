@@ -71,7 +71,7 @@ class Andor:
         error = self.dll.AT_Open(0, byref(self.handle))
         self.verbose(ERROR_CODE[error], sys._getframe().f_code.co_name)
         self.GetCameraSerialNumber()
-        print(print("[AndorDevice] Zyla sCMOS camera found: ",self.serial))
+        print("[AndorDevice] Zyla sCMOS camera found: ",self.serial)
         # Create buffer for Andor DLL image acquisition
         self.im_size = self.GetImageSize()
         self.buffer_size = self.im_size.value

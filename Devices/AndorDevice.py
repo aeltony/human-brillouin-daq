@@ -137,7 +137,7 @@ class AndorDevice(Devices.BrillouinDevice.Device):
 
     def getTemperature(self):
         temp = self.getAndorSetting(self.cam.GetTemperature, 'temperature')
-        print("[AndorDevice] Temperature = %f" % temp)
+        #print("[AndorDevice] Temperature = %f" % temp)
         return temp
 
     def setAutoExp(self, autoExpStatus):
