@@ -19,7 +19,7 @@ class ZaberDevice(Devices.BrillouinDevice.Device):
 	# This class always runs, so it takes app as an argument
     def __init__(self, stop_event, app):
         super(ZaberDevice, self).__init__(stop_event)   #runMode=0 default
-
+        # Just a test 01/18
         self.deviceName = "Zaber"
         self.enqueueData = False
         self.commandQueue = Queue.Queue()
