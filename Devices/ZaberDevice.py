@@ -19,46 +19,81 @@ class ZaberDevice(Devices.BrillouinDevice.Device):
 	# This class always runs, so it takes app as an argument
     def __init__(self, stop_event, app):
         super(ZaberDevice, self).__init__(stop_event)   #runMode=0 default
-        # Just a test 01/18
         self.deviceName = "Zaber"
         self.enqueueData = False
         self.commandQueue = Queue.Queue()
-        self.homeLoc = 3000.
+        self.homeLocX = 0.
+        self.homeLocY = 0.
+        self.homeLocZ = 0.
 
-        # TODO: choose COM port, throw error if port not found
-        self.port = zs.AsciiSerial("COM4", timeout = 20, inter_char_timeout = 0.05)
-        self.device = zs.AsciiDevice(self.port, 1)
-        self.z_axis = zs.AsciiAxis(self.device, 1)
-        self.device.home()
-        #self.z_axis.home()
-        self.microstep_size = 0.047625  #um
+        self.port = zs.AsciiSerial("COM4", baud=115200, timeout = 20, inter_char_timeout = 0.05)
+        self.xy_device = zs.AsciiDevice(self.port, 3)
+        self.z_device = zs.AsciiDevice(self.port, 4)
+        self.x_axis = zs.AsciiAxis(self.xy_device, 1)
+        self.y_axis = zs.AsciiAxis(self.xy_device, 2)
+        self.z_axis = zs.AsciiAxis(self.z_device, 1)
+        reply = self.x_axis.home()
+        if self.checkReply(reply):
+            print("[ZaberDevice] X-axis homed")
+        else:
+            print("[ZaberDevice] X-axis home failed")
+        reply = self.y_axis.home()
+        if self.checkReply(reply):
+            print("[ZaberDevice] Y-axis homed")
+        else:
+            print("[ZaberDevice] Y-axis home failed")
+        reply = self.z_axis.home()
+        if self.checkReply(reply):
+            print("[ZaberDevice] Z-axis homed")
+        else:
+            print("[ZaberDevice] Z-axis home failed")
 
-        self.device.move_abs(int(self.homeLoc/self.microstep_size))
-        #self.device.move_abs(self.homeLoc/self.microstep_size)
-        print("[ZaberDevice] Motor homed")
+        self.xy_microstep_size = 0.15625 #Microstep resolution in um
+        self.z_microstep_size = 0.001 #Encoder count size in um
+        #self.microstep_size = 0.047625 #um
 
-        #microstep_cmd = zs.BinaryCommand(1, 37, 64)  #set microstep resolution
-        microstep_cmd = zs.AsciiCommand(1, "set resolution", 64)  #set microstep resolution
-        #self.z_axis.send(microstep_cmd)
-        self.device.send(microstep_cmd)
-        print("[ZaberDevice] Microstep resolution set to %.6f um" % self.microstep_size)
+        #microstep_cmd = zs.AsciiCommand("set resolution", 64)  #set microstep resolution
+        #reply = self.x_axis.send(microstep_cmd)
+        #if reply.warning_flag != "--":
+        #    print("Warning received for X axis! Flag: {}".format(reply.warning_flag))
+        #else:
+        #    print("[ZaberDevice] X-axis resolution set")
+        #reply = self.y_axis.send(microstep_cmd)
+        #if reply.warning_flag != "--":
+        #    print("Warning received for Y axis! Flag: {}".format(reply.warning_flag))
+        #else:
+        #    print("[ZaberDevice] Y-axis resolution set")
+        #reply = self.z_axis.send(microstep_cmd)
+        #if reply.warning_flag != "--":
+        #    print("Warning received for Z axis! Flag: {}".format(reply.warning_flag))
+        #else:
+        #    print("[ZaberDevice] Z-axis resolution set")
+        #print("[ZaberDevice] Microstep resolution set to %.6f um" % self.microstep_size)
 
-        speed = 26
-        speed_cmd = zs.AsciiCommand(1, "set speed", int(speed/26*894455))  # 894455 = 26mm/s
-        #speed_cmd = zs.BinaryCommand(1, 42, int(speed/26*894455))  # 894455 = 26mm/s
-        self.device.send(speed_cmd)
-        print("[ZaberDevice] Motor speed set to %f mm/s" % speed)
+        #speed = 26
+        #speed_cmd = zs.AsciiCommand("set speed", int(speed/26*894455))  # 894455 = 26mm/s
+        #self.x_axis.send(speed_cmd)
+        #self.y_axis.send(speed_cmd)
+        #self.z_axis.send(speed_cmd)
+        #print("[ZaberDevice] Motor speed set to %f mm/s" % speed)
 
-        #acceleration_cmd = zs.BinaryCommand(1, 43, 600)
-        #self.device.send(acceleration_cmd)
-        acceleration_cmd = zs.AsciiCommand(1, "set accel", 600)
-        self.z_axis.send(acceleration_cmd)
+        #acceleration_cmd = zs.AsciiCommand("set accel", 600)
+        #self.x_axis.send(acceleration_cmd)
+        #self.y_axis.send(acceleration_cmd)
+        #self.z_axis.send(acceleration_cmd)
+
+        #self.x_axis.move_abs(int(self.homeLocX/self.microstep_size))
+        #print("[ZaberDevice] X-axis homed")
+        #self.y_axis.move_abs(int(self.homeLocY/self.microstep_size))
+        #print("[ZaberDevice] Y-axis homed")
+        #self.z_axis.move_abs(int(self.homeLocZ/self.microstep_size))
+        #print("[ZaberDevice] Z-axis homed")
 
         self.ZaberLock = app.ZaberLock
 
         self.updateLock = threading.Lock()
-        self._lastPosition = 0
-        self.updatePosition()
+        self._lastPosition = [0, 0, 0]
+        self.updatePosition('a')
 
     def shutdown(self):
         with self.ZaberLock:
@@ -72,52 +107,144 @@ class ZaberDevice(Devices.BrillouinDevice.Device):
         try:
             cmd = self.commandQueue.get(block=True, timeout=1.0)
             method = getattr(self, cmd[0])
-            if cmd[1] is None:
+            if cmd[1] == None:
                 method()
             else:
                 method(cmd[1])
         except Queue.Empty:
             pass
 
-    def setMotorAsync(self, methodName, arg=[]):
+    # Checks for warnings + errors from Zaber devices
+    def checkReply(self, reply):
+        if reply.reply_flag != "OK":
+            print ("[ZaberDevice] Command rejected because: {}".format(reply.data))
+            return False
+        else: # Command was accepted
+            return True
+
+    def setMotorAsync(self, methodName, whichAxis='a', arg=[]):
         if (arg == []):
-            self.commandQueue.put((methodName, None))
+            self.commandQueue.put((methodName, whichAxis))
         else:
-            self.commandQueue.put((methodName, arg[0]))
+            self.commandQueue.put((methodName, whichAxis, arg[0]))
 
     # returns current position of motor, in um
-    def updatePosition(self):
+    def updatePosition(self, whichAxis='a'):
+        # print '[ZaberDevice] updatePosition'
         with self.ZaberLock:
-            #reply = self.device.send(60,0)
-            reply = self.z_axis.send("1 get pos")
+            if whichAxis == 'x':
+                reply_x = self.x_axis.send("get pos")
+            elif whichAxis == 'y':
+                reply_y = self.y_axis.send("get pos")
+            elif whichAxis == 'z':
+                reply_z = self.z_axis.send("get pos")
+            elif whichAxis == 'a':
+                reply_x = self.x_axis.send("get pos")
+                reply_y = self.y_axis.send("get pos")
+                reply_z = self.z_axis.send("get pos")
         with self.updateLock:
-            self._lastPosition = float(reply.data) * self.microstep_size
-        
-	# returns current position of motor, in um
-    def getCurrentPosition(self):
-        with self.updateLock:
-            return self._lastPosition
+            if whichAxis == 'x':
+                self._lastPosition[0] = float(reply_x.data) * self.xy_microstep_size
+            elif whichAxis == 'y':
+                self._lastPosition[1] = float(reply_y.data) * self.xy_microstep_size
+            elif whichAxis == 'z':
+                self._lastPosition[2] = float(reply_z.data) * self.z_microstep_size
+            elif whichAxis == 'a':
+                self._lastPosition[0] = float(reply_x.data) * self.xy_microstep_size
+                self._lastPosition[1] = float(reply_y.data) * self.xy_microstep_size
+                self._lastPosition[2] = float(reply_z.data) * self.z_microstep_size
+        return self._lastPosition
 
-    # moves zaber motor to home position
-    def moveHome(self):
-        # print('[ZaberDevice] moveHome')
-        self.moveAbs(self.homeLoc)
-    	# with self.ZaberLock:
-     #    	self.device.home()
-     #    	loc = self.device.send(60,0)
-        # return loc.data * self.microstep_size
+    # moves Zaber stages to home position
+    def moveHome(self, whichAxis='a'):
+        if whichAxis == 'x':
+            self.moveAbs(whichAxis, self.homeLocX)
+        elif whichAxis == 'y':
+            self.moveAbs(whichAxis, self.homeLocY)
+        elif whichAxis == 'z':
+            self.moveAbs(whichAxis, self.homeLocZ)
+        elif whichAxis == 'a':
+            self.moveAbs('x', self.homeLocX)
+            self.moveAbs('y', self.homeLocY)
+            self.moveAbs('z', self.homeLocZ)
 
-    # moves zaber motor, called on by forwards and backwards buttons
+    # moves Zaber motor, called on by forwards and backwards buttons
     # distance in um
-    def moveRelative(self, distance):
-        # print("[ZaberDevice] moveRelative %f um" % distance)
-        # with self.ZaberLock:
-            self.z_axis.move_rel(int(distance/self.microstep_size))
-            self.updatePosition()
-
-    # moves zaber motor to a set location, called on above
-    def moveAbs(self, pos):
+    def moveRelative(self, whichAxis='a', distance=0):
+        # print "[ZaberDevice] moveRelative %f um" % distance
         with self.ZaberLock:
-            #self.device.move_abs(pos/self.microstep_size)
-            self.z_axis.move_abs(int(pos/self.microstep_size))
-        self.updatePosition()
+            if whichAxis == 'x':
+                reply = self.x_axis.move_rel(int(distance/self.xy_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] X-axis moveRelative %f um" % distance)
+                else:
+                    print("[ZaberDevice] X-axis moveRelative failed")
+            elif whichAxis == 'y':
+                reply = self.y_axis.move_rel(int(distance/self.xy_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] Y-axis moveRelative %f um" % distance)
+                else:
+                    print("[ZaberDevice] Y-axis moveRelative failed")
+            elif whichAxis == 'z':
+                reply = self.z_axis.move_rel(int(distance/self.z_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] Z-axis moveRelative %f um" % distance)
+                else:
+                    print("[ZaberDevice] Z-axis moveRelative failed")
+            elif whichAxis == 'a':
+                reply = self.x_axis.move_rel(int(distance/self.xy_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] X-axis moveRelative %f um" % distance)
+                else:
+                    print("[ZaberDevice] X-axis moveRelative failed")
+                reply = self.y_axis.move_rel(int(distance/self.xy_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] Y-axis moveRelative %f um" % distance)
+                else:
+                    print("[ZaberDevice] Y-axis moveRelative failed")
+                reply = self.z_axis.move_rel(int(distance/self.z_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] Z-axis moveRelative %f um" % distance)
+                else:
+                    print("[ZaberDevice] Z-axis moveRelative failed")
+        self.updatePosition(whichAxis)
+
+    # moves Zaber motor to a set location, called on above
+    def moveAbs(self, whichAxis='a', pos=0):
+        print("[ZaberDevice] moveAbs called with pos %d encoder counts" % int(pos/self.xy_microstep_size))
+        with self.ZaberLock:
+            if whichAxis == 'x':
+                reply = self.x_axis.move_abs(int(pos/self.xy_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] X-axis moveAbs to %f um" % pos)
+                else:
+                    print("[ZaberDevice] X-axis moveAbs failed")
+            elif whichAxis == 'y':
+                reply = self.y_axis.move_abs(int(pos/self.xy_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] Y-axis moveAbs to %f um" % pos)
+                else:
+                    print("[ZaberDevice] Y-axis moveAbs failed")
+            elif whichAxis == 'z':
+                reply = self.z_axis.move_abs(int(pos/self.z_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] Z-axis moveAbs to %f um" % pos)
+                else:
+                    print("[ZaberDevice] Z-axis moveAbs failed")
+            elif whichAxis == 'a':
+                reply = self.x_axis.move_abs(int(pos/self.xy_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] X-axis moveAbs to %f um" % pos)
+                else:
+                    print("[ZaberDevice] X-axis moveAbs failed")
+                reply = self.y_axis.move_abs(int(pos/self.xy_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] Y-axis moveAbs to %f um" % pos)
+                else:
+                    print("[ZaberDevice] Y-axis moveAbs failed")
+                reply = self.z_axis.move_abs(int(pos/self.z_microstep_size))
+                if self.checkReply(reply):
+                    print("[ZaberDevice] Z-axis moveAbs to %f um" % pos)
+                else:
+                    print("[ZaberDevice] Z-axis moveAbs failed")
+        self.updatePosition(whichAxis)

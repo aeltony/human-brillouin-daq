@@ -42,6 +42,49 @@ class ActionParameterItem2(ParameterItem):
     def buttonClicked2(self):
         self.param.activate2()
 
+class ActionParameterItem3(ParameterItem):
+    def __init__(self, param, depth):
+        ParameterItem.__init__(self, param, depth)
+        self.layoutWidget = QtGui.QWidget()
+        self.layout = QtGui.QHBoxLayout()
+        self.layoutWidget.setLayout(self.layout)
+        bt = param.opts['ButtonText']
+        self.button = QtGui.QPushButton(bt[0])
+        self.button2 = QtGui.QPushButton(bt[1])
+        self.button3 = QtGui.QPushButton(bt[2])
+        #self.layout.addSpacing(100)
+        self.layout.addWidget(self.button)
+        self.layout.addWidget(self.button2)
+        self.layout.addWidget(self.button3)
+        self.layout.addStretch()
+        self.layout.setContentsMargins(2,2,2,2)
+        self.button.clicked.connect(self.buttonClicked)
+        self.button2.clicked.connect(self.buttonClicked2)
+        self.button3.clicked.connect(self.buttonClicked3)
+        param.sigNameChanged.connect(self.paramRenamed)
+        self.setText(0, '')
+        
+    def treeWidgetChanged(self):
+        ParameterItem.treeWidgetChanged(self)
+        tree = self.treeWidget()
+        if tree is None:
+            return
+        
+        tree.setFirstItemColumnSpanned(self, True)
+        tree.setItemWidget(self, 0, self.layoutWidget)
+        
+    def paramRenamed(self, param, name):
+        self.button.setText(name)
+        
+    def buttonClicked(self):
+        self.param.activate()
+        
+    def buttonClicked2(self):
+        self.param.activate2()
+
+    def buttonClicked3(self):
+        self.param.activate3()
+
 class ActionParameter2(Parameter):
     """Used for displaying a button within the tree."""
     itemClass = ActionParameterItem2
@@ -54,6 +97,25 @@ class ActionParameter2(Parameter):
 
     def activate2(self):
         self.sigActivated2.emit(self)
+        self.emitStateChanged('activated', None)
+
+class ActionParameter3(Parameter):
+    """Used for displaying a button within the tree."""
+    itemClass = ActionParameterItem3
+    sigActivated = QtCore.Signal(object)
+    sigActivated2 = QtCore.Signal(object)
+    sigActivated3 = QtCore.Signal(object)
+    
+    def activate(self):
+        self.sigActivated.emit(self)
+        self.emitStateChanged('activated', None)
+
+    def activate2(self):
+        self.sigActivated2.emit(self)
+        self.emitStateChanged('activated', None)
+
+    def activate3(self):
+        self.sigActivated3.emit(self)
         self.emitStateChanged('activated', None)
 
 class SliderParameterItem(ParameterItem):
@@ -114,4 +176,5 @@ class SliderParameter(Parameter):
 
 
 registerParameterType('action2', ActionParameter2, override=True)
+registerParameterType('action3', ActionParameter3, override=True)
 registerParameterType('toggle', SliderParameter, override=True)

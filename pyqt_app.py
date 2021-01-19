@@ -76,10 +76,22 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
         self.params = [
             {'name': 'Scan', 'type': 'group', 'children': [
-                {'name': 'Start Position', 'type': 'float', 'value': -500, 'suffix':' um', 'step': 100, 'limits': (-5000, 5000)},
-                {'name': 'Step Size', 'type': 'float', 'value': 30, 'suffix':' um', 'step': 1, 'limits': (0, 1000), 'decimals':5},
-                {'name': 'Frame Number', 'type': 'int', 'value': 40, 'step': 1, 'limits':(1, 2000)},
-                {'name': 'End Position', 'type': 'float', 'value': 1200, 'suffix':' um', 'readonly': True, 'decimals':5},
+                {'name': 'Start Position', 'type': 'group', 'children': [
+                    {'name': 'X', 'type': 'float', 'value': 0, 'suffix':' um', 'step': 100, 'limits':(-10000,10000),'decimals':5},
+                    {'name': 'Y', 'type': 'float', 'value': 0, 'suffix':' um', 'step': 100, 'limits':(-10000,10000),'decimals':5},
+                    {'name': 'Z', 'type': 'float', 'value': 0, 'suffix':' um', 'step': 100, 'limits':(-10000,10000),'decimals':5}]},
+                {'name': 'Step Size', 'type': 'group', 'children': [
+                    {'name': 'X', 'type': 'float', 'value': 50, 'suffix':' um', 'step': 1, 'limits':(0,1000),'decimals':5},
+                    {'name': 'Y', 'type': 'float', 'value': 50, 'suffix':' um', 'step': 1, 'limits':(0,1000),'decimals':5},
+                    {'name': 'Z', 'type': 'float', 'value': 50, 'suffix':' um', 'step': 1, 'limits':(0,1000),'decimals':5}]},
+                {'name': 'Frame Number', 'type': 'group', 'children': [
+                    {'name': 'X', 'type': 'int', 'value': 5, 'step': 1, 'limits':(1,2000)},
+                    {'name': 'Y', 'type': 'int', 'value': 5, 'step': 1, 'limits':(1,2000)},
+                    {'name': 'Z', 'type': 'int', 'value': 5, 'step': 1, 'limits':(1,2000)}]},
+                {'name': 'End Position', 'type': 'group', 'children': [
+                    {'name': 'X', 'type': 'float', 'value': 250, 'suffix':' um', 'readonly': True, 'decimals':5},
+                    {'name': 'Y', 'type': 'float', 'value': 250, 'suffix':' um', 'readonly': True, 'decimals':5},
+                    {'name': 'Z', 'type': 'float', 'value': 250, 'suffix':' um', 'readonly': True, 'decimals':5}]},
                 {'name': 'Ambient Temp.', 'type': 'float', 'value': 0.0, 'suffix':' deg. C', 'readonly':True, 'decimals':4},
                 {'name': 'Ref. FSR', 'type': 'float', 'value':16.25, 'suffix':' GHz', 'limits':(5, 100), 'decimals':6}, 
                 {'name': 'Ref. SD', 'type': 'float', 'value':0.1, 'suffix':' GHz/px', 'limits':(0, 2), 'decimals':4}, 
@@ -93,13 +105,17 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                 ]}
             ]},
             {'name': 'Motor', 'type': 'group', 'children': [
-                {'name': 'Velocity', 'type': 'float', 'value': 26, 'suffix':' mm/s', 'step': 1, 'limits': (1, 26)},
-                {'name': 'Acceleration', 'type': 'float', 'value': 600, 'suffix':' mm/s^2', 'step': 10, 'limits': (1, 1000), 'decimals':4},
-                {'name': 'Jog Step', 'type': 'float', 'value': 10, 'suffix':' um', 'step': 1, 'limits':(0.1, 500)},
-                {'name': 'Current Location', 'type': 'float', 'value':0, 'suffix':' um', 'readonly': True, 'decimals':5}, 
-                {'name': 'Move To Location', 'type': 'float', 'value':0, 'suffix':' um', 'limits':(-1000, 2000), 'decimals':5},
-                {'name': 'Jog', 'type': 'action2', 'ButtonText':('Jog Forward', 'Jog Backward')},
-                {'name': 'Move/Home', 'type':'action2', 'ButtonText':('Move', 'Home')}
+                {'name': 'Velocity', 'type': 'float', 'value': 26, 'suffix':' (mm/s)', 'step': 1, 'limits': (1, 26)},
+                {'name': 'Acceleration', 'type': 'float', 'value': 600, 'suffix':' (mm/s^2)', 'step': 10, 'limits': (1, 1000), 'decimals':4},
+                {'name': 'Jog step', 'type': 'float', 'value': 10, 'suffix':' um', 'step': 1, 'limits':(0.1, 500)},
+                {'name': 'Current X location', 'type': 'float', 'value':0, 'suffix':' um', 'readonly': True, 'decimals':5},
+                {'name': 'Current Y location', 'type': 'float', 'value':0, 'suffix':' um', 'readonly': True, 'decimals':5},
+                {'name': 'Current Z location', 'type': 'float', 'value':0, 'suffix':' um', 'readonly': True, 'decimals':5},
+                {'name': 'Jog X', 'type': 'action3', 'ButtonText':('Jog X +', 'Jog X -', 'Home X')},
+                {'name': 'Jog Y', 'type': 'action3', 'ButtonText':('Jog Y +', 'Jog Y -', 'Home Y')},
+                {'name': 'Jog Z', 'type': 'action3', 'ButtonText':('Jog Z +', 'Jog Z -', 'Home Z')},
+                {'name': 'Move to location', 'type': 'float', 'value':0, 'suffix':' um', 'limits':(0, 5000), 'decimals':5},
+                {'name': 'Move', 'type':'action3', 'ButtonText':('Move X', 'Move Y', 'Move Z')}
             ]},
             {'name': 'Microwave Source', 'type': 'group', 'children': [
                 {'name': 'RF Frequency', 'type': 'float', 'value': 5.0, 'suffix':' GHz', 'step': 0.1, 'limits': (0.05, 13.0), 'decimals':3},
@@ -581,35 +597,71 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         # ========================= Motor =================================
         pItem = self.allParameters.child('Motor')
         self.MotorPositionUpdate()
-
+        
         # connect Jog Buttons
-        motorFwdFun = lambda: self.ZaberDevice.moveRelative( 
-            self.allParameters.child('Motor').child('Jog Step').value() )
-        motorBackFun = lambda: self.ZaberDevice.moveRelative( 
-            -self.allParameters.child('Motor').child('Jog Step').value() )
-        pItem.child('Jog').sigActivated.connect(motorFwdFun)
-        pItem.child('Jog').sigActivated2.connect(motorBackFun)
+        motorFwdFunX = lambda: self.ZaberDevice.moveRelative( 
+            'x', self.allParameters.child('Motor').child('Jog step').value())
+        motorBackFunX = lambda: self.ZaberDevice.moveRelative( 
+            'x', -self.allParameters.child('Motor').child('Jog step').value())
+        pItem.child('Jog X').sigActivated.connect(motorFwdFunX)
+        pItem.child('Jog X').sigActivated2.connect(motorBackFunX)
+        pItem.child('Jog X').sigActivated3.connect(lambda: self.ZaberDevice.setMotorAsync('moveHome', 'x'))
 
-        # connect Move and Home button
-        motorMoveFun = lambda: self.ZaberDevice.setMotorAsync(
-            'moveAbs', [self.allParameters.child('Motor').child('Move To Location').value()])
-        # motorMoveFun = lambda: self.ZaberDevice.moveAbs( 
-        #     self.allParameters.child('Motor').child('Move To Location').value() )
-        pItem.child('Move/Home').sigActivated.connect(motorMoveFun)
-        pItem.child('Move/Home').sigActivated2.connect(lambda: self.ZaberDevice.setMotorAsync('moveHome'))
+        motorFwdFunY = lambda: self.ZaberDevice.moveRelative( 
+            'y', self.allParameters.child('Motor').child('Jog step').value())
+        motorBackFunY = lambda: self.ZaberDevice.moveRelative( 
+            'y', -self.allParameters.child('Motor').child('Jog step').value())
+        pItem.child('Jog Y').sigActivated.connect(motorFwdFunY)
+        pItem.child('Jog Y').sigActivated2.connect(motorBackFunY)
+        pItem.child('Jog Y').sigActivated3.connect(lambda: self.ZaberDevice.setMotorAsync('moveHome', 'y'))
+
+        motorFwdFunZ = lambda: self.ZaberDevice.moveRelative( 
+            'z', self.allParameters.child('Motor').child('Jog step').value())
+        motorBackFunZ = lambda: self.ZaberDevice.moveRelative( 
+            'z', -self.allParameters.child('Motor').child('Jog step').value())
+        pItem.child('Jog Z').sigActivated.connect(motorFwdFunZ)
+        pItem.child('Jog Z').sigActivated2.connect(motorBackFunZ)
+        pItem.child('Jog Z').sigActivated3.connect(lambda: self.ZaberDevice.setMotorAsync('moveHome', 'z'))
+
+        # connect Move and Home buttons
+        motorMoveFunX = lambda: self.ZaberDevice.moveAbs(
+            'x', self.allParameters.child('Motor').child('Move to location').value())
+        pItem.child('Move').sigActivated.connect(motorMoveFunX)
+        motorMoveFunY = lambda: self.ZaberDevice.moveAbs(
+            'y', self.allParameters.child('Motor').child('Move to location').value())
+        pItem.child('Move').sigActivated2.connect(motorMoveFunY)
+        motorMoveFunZ = lambda: self.ZaberDevice.moveAbs(
+            'z', self.allParameters.child('Motor').child('Move to location').value())
+        pItem.child('Move').sigActivated3.connect(motorMoveFunZ)
 
         # ========================= Scan ===================
         pItem = self.allParameters.child('Scan')
-        startPos = pItem.child('Start Position').value()
-        stepSize = pItem.child('Step Size').value()
-        frameNum = pItem.child('Frame Number').value()
-        endPos = startPos + stepSize * frameNum
-        pItem.child('End Position').setValue(endPos)
+        startPosX = pItem.child('Start Position').child('X').value()
+        stepSizeX = pItem.child('Step Size').child('X').value()
+        frameNumX = pItem.child('Frame Number').child('X').value()
+        endPosX = startPosX + stepSizeX * frameNumX
+        pItem.child('End Position').child('X').setValue(endPosX)
+        pItem.child('Start Position').child('X').sigValueChanging.connect(lambda param, value: self.updateScanEndPosX(0, param, value))
+        pItem.child('Step Size').child('X').sigValueChanging.connect(lambda param, value: self.updateScanEndPosX(1, param, value))
+        pItem.child('Frame Number').child('X').sigValueChanging.connect(lambda param, value: self.updateScanEndPosX(2, param, value))
+        startPosY = pItem.child('Start Position').child('Y').value()
+        stepSizeY = pItem.child('Step Size').child('Y').value()
+        frameNumY = pItem.child('Frame Number').child('Y').value()
+        endPosY = startPosY + stepSizeY * frameNumY
+        pItem.child('End Position').child('Y').setValue(endPosY)
+        pItem.child('Start Position').child('Y').sigValueChanging.connect(lambda param, value: self.updateScanEndPosY(0, param, value))
+        pItem.child('Step Size').child('Y').sigValueChanging.connect(lambda param, value: self.updateScanEndPosY(1, param, value))
+        pItem.child('Frame Number').child('Y').sigValueChanging.connect(lambda param, value: self.updateScanEndPosY(2, param, value))
+        startPosZ = pItem.child('Start Position').child('Z').value()
+        stepSizeZ = pItem.child('Step Size').child('Z').value()
+        frameNumZ = pItem.child('Frame Number').child('Z').value()
+        endPosZ = startPosZ + stepSizeZ * frameNumZ
+        pItem.child('End Position').child('Z').setValue(endPosZ)
+        pItem.child('Start Position').child('Z').sigValueChanging.connect(lambda param, value: self.updateScanEndPosZ(0, param, value))
+        pItem.child('Step Size').child('Z').sigValueChanging.connect(lambda param, value: self.updateScanEndPosZ(1, param, value))
+        pItem.child('Frame Number').child('Z').sigValueChanging.connect(lambda param, value: self.updateScanEndPosZ(2, param, value))
         pItem.child('Scan/Cancel').sigActivated.connect(self.startScan)
         pItem.child('Scan/Cancel').sigActivated2.connect(self.cancelScan)
-        pItem.child('Start Position').sigValueChanging.connect(lambda param, value: self.updateScanEndPos(0, param, value))
-        pItem.child('Step Size').sigValueChanging.connect(lambda param, value: self.updateScanEndPos(1, param, value))
-        pItem.child('Frame Number').sigValueChanging.connect(lambda param, value: self.updateScanEndPos(2, param, value))
 
         # ========================= Sample/Reference ===================
         pItem = self.allParameters.child('Scan')
@@ -638,12 +690,12 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             # expTime = self.AndorDeviceThread.getExposure()
             # self.allParameters.child('Spectrometer Camera').child('Exposure').setValue(expTime)
 
-    def updateScanEndPos(self, updateIndex, param, value):
-        # print("[updateScanEndPos]")
+    def updateScanEndPosX(self, updateIndex, param, value):
+        print("[updateScanEndPosX]")
         pItem = self.allParameters.child('Scan')
-        startPos = pItem.child('Start Position').value()
-        stepSize = pItem.child('Step Size').value()
-        frameNum = pItem.child('Frame Number').value()
+        startPos = pItem.child('Start Position').child('X').value()
+        stepSize = pItem.child('Step Size').child('X').value()
+        frameNum = pItem.child('Frame Number').child('X').value()
         if (updateIndex == 0):
             startPos = value
         elif (updateIndex == 1):
@@ -651,17 +703,51 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         else:
             frameNum = value
         endPos = startPos + stepSize * (frameNum - 1)
-        pItem.child('End Position').setValue(endPos)
+        pItem.child('End Position').child('X').setValue(endPos)
 
-    @QtCore.pyqtSlot(float)
+    def updateScanEndPosY(self, updateIndex, param, value):
+        print("[updateScanEndPosY]")
+        pItem = self.allParameters.child('Scan')
+        startPos = pItem.child('Start Position').child('Y').value()
+        stepSize = pItem.child('Step Size').child('Y').value()
+        frameNum = pItem.child('Frame Number').child('Y').value()
+        if (updateIndex == 0):
+            startPos = value
+        elif (updateIndex == 1):
+            stepSize = value
+        else:
+            frameNum = value
+        endPos = startPos + stepSize * (frameNum - 1)
+        pItem.child('End Position').child('Y').setValue(endPos)
+
+    def updateScanEndPosZ(self, updateIndex, param, value):
+        print("[updateScanEndPosZ]")
+        pItem = self.allParameters.child('Scan')
+        startPos = pItem.child('Start Position').child('Z').value()
+        stepSize = pItem.child('Step Size').child('Z').value()
+        frameNum = pItem.child('Frame Number').child('Z').value()
+        if (updateIndex == 0):
+            startPos = value
+        elif (updateIndex == 1):
+            stepSize = value
+        else:
+            frameNum = value
+        endPos = startPos + stepSize * (frameNum - 1)
+        pItem.child('End Position').child('Z').setValue(endPos)
+
+    @QtCore.pyqtSlot(list)
     def MotorPositionUpdate2(self, pos):
-        # print("[MotorPositionUpdate2]")
-        self.allParameters.child('Motor').child('Current Location').setValue(pos)
+        #print("[MotorPositionUpdate2]")
+        self.allParameters.child('Motor').child('Current X location').setValue(pos[0])
+        self.allParameters.child('Motor').child('Current Y location').setValue(pos[1])
+        self.allParameters.child('Motor').child('Current Z location').setValue(pos[2])
 
     def MotorPositionUpdate(self):
-        # print("[MotorPositionUpdate]")
-        pos = self.ZaberDevice.getCurrentPosition()
-        self.allParameters.child('Motor').child('Current Location').setValue(pos)
+        #print("[MotorPositionUpdate]")
+        pos = self.ZaberDevice.updatePosition()
+        self.allParameters.child('Motor').child('Current X location').setValue(pos[0])
+        self.allParameters.child('Motor').child('Current Y location').setValue(pos[1])
+        self.allParameters.child('Motor').child('Current Z location').setValue(pos[2])
 
     @QtCore.pyqtSlot()
     def clearGUIElements(self):

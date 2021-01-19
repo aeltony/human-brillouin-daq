@@ -1,8 +1,10 @@
 {
   "ExpandedNodes": [
     "",
-    "\\Devices"
+    "\\Devices",
+    "\\pyqtgraph",
+    "\\pyqtgraph\\parametertree"
   ],
-  "SelectedNode": "\\Devices\\AndorDevice.py",
+  "SelectedNode": "\\Devices\\MakoDevice.py",
   "PreviewInSolutionExplorer": false
 }
