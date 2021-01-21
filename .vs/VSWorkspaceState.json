@@ -2,9 +2,8 @@
   "ExpandedNodes": [
     "",
     "\\Devices",
-    "\\pyqtgraph",
-    "\\pyqtgraph\\parametertree"
+    "\\pyqtgraph"
   ],
-  "SelectedNode": "\\Devices\\MakoDevice.py",
+  "SelectedNode": "\\pyqt_app.py",
   "PreviewInSolutionExplorer": false
 }

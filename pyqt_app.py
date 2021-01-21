@@ -134,10 +134,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             {'name': 'Pupil Camera', 'type': 'group', 'children': [
                 {'name': 'Pupil Radius', 'type': 'float', 'value': pupilRadius, 'suffix':' px', 'step': 5, 'limits': (1, 1000)},
                 {'name': 'Scale Factor', 'type': 'float', 'value': 0.02, 'suffix':' (mm/px)', 'step': 0.001, 'limits': (0, 1)},
-                {'name': 'Frame Rate', 'type': 'int', 'value': 5, 'limits':(2, 20)}
-                # {'name': 'Take Picture', 'type': 'float', 'value': -60, 'step': 1, 'limits': (-80, 30)},
-                # {'name': 'Take Video', 'type': 'float', 'value':0, 'readonly': True},
-                #Other settings here
+                {'name': 'Exposure Time', 'type': 'float', 'value': 200, 'limits':(0.1, 10000)},
+                {'name': 'Frame Rate', 'type': 'int', 'value': 5, 'limits':(1, 20)}
             ]}
         ]
         ## Create tree of Parameter objects
@@ -577,13 +575,20 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
     def InitHardwareParameterTree(self):
         # print("[InitHardwareParameterTree]")
 
-        # ========================= Andor Camera ================================
+        # ========================= Spectrometer Camera ================================
         pItem = self.allParameters.child('Spectrometer Camera')
         pItem.child('AutoExposure').sigActivated.connect(self.switchAutoExp)
         pItem.child('Camera Temp.').setValue(self.AndorDeviceThread.getTemperature())
         pItem.child('Exposure').sigValueChanged.connect(
             lambda data: self.changeHardwareSetting(data, self.AndorDeviceThread.setExposure))
         pItem.child('Exposure').setValue(self.AndorDeviceThread.getExposure())
+
+        # ========================= Monitor Camera ================================
+        pItem = self.allParameters.child('Pupil Camera')
+        pItem.child('Exposure Time').sigValueChanged.connect(
+            lambda data: self.changeHardwareSetting(data, self.MakoDeviceThread.setExpTime))
+        pItem.child('Frame Rate').sigValueChanged.connect(
+            lambda data: self.changeHardwareSetting(data, self.MakoDeviceThread.setFrameRate))
 
         # ========================= Microwave Source ================================
         pItem = self.allParameters.child('Microwave Source')
@@ -1174,7 +1179,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
     # makoData[0] is the CMOS camera image with pupil detection
     # makoData[1] is a tuple with the pupil center coordinate
     def MakoProcessUpdate(self, makoData):
-        # print("[MakoProcessUpdate]")
+        #print("[MakoProcessUpdate]")
         image = makoData[0]
         center = np.array([makoData[1]])
         # center[1] = self.MakoDeviceThread.imageHeight - center[1]

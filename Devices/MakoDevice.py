@@ -1,7 +1,7 @@
 import Devices.BrillouinDevice
 import time
 
-from Devices.pymba import *
+import PySpin
 
 import imutils
 import cv2
@@ -13,7 +13,7 @@ from timeit import default_timer as default_timer   #debugging
 
 from PupilDetection import *
 
-
+# Called "Mako" for historical reasons, this is a FLIR camera.
 # This is the CMOS camera. Included in this file in the processing class
 # is pupil tracking.
 
@@ -23,85 +23,83 @@ class MakoDevice(Devices.BrillouinDevice.Device):
     def __init__(self, stop_event, app):
         super(MakoDevice, self).__init__(stop_event)   #runMode=0 default
         self.deviceName = "Mako"
+        self.system = None
+        self.cam_list = None
         self.camera = None
-        self.vimba = Vimba()
-
+        self.nodemap = None
+        self.nodemap_tldevice = None
+        self.system = PySpin.System.GetInstance()
+        # Retrieve list of cameras from the system
+        self.cam_list = self.system.GetCameras()
+        if self.cam_list.GetSize()>0:
+            print("[MakoDevice] FLIR camera found")
+        self.camera = self.cam_list[0]
+        # Retrieve TL device nodemap
+        self.nodemap_tldevice = self.camera.GetTLDeviceNodeMap()
+        # Initialize camera
+        self.camera.Init()
+        # Retrieve genicam nodemap
+        self.nodemap = self.camera.GetNodeMap()
         self.set_up()
-
+        self.camera.BeginAcquisition()
+        self.imageHeight = 2200
+        self.imageWidth = 3208
+        self.bin_size = 1
         self.mako_lock = app.mako_lock
         self.runMode = 0    #0 is free running, 1 is scan
-
-        self.camera.ExposureTimeAbs = 20000    # us??
-
-        self.imageHeight = 1000
-        self.imageWidth = 1000
-        self.bin_size = 2
-        self.camera.Height = self.imageHeight # max: 2048
-        self.camera.Width = self.imageWidth # max: 2048
-        self.camera.OffsetX = 320
-        self.camera.OffsetY = 600
-
-        self.camera.startCapture()
-        self.camera.runFeatureCommand('AcquisitionStart')
-        self.frame.queueFrameCapture()
-
-
-
+    
     # set up default parameters
     def set_up(self):
-        self.vimba.startup()
-        system = self.vimba.getSystem()
-
-        if system.GeVTLIsPresent:
-            system.runFeatureCommand("GeVDiscoveryAllOnce")
-            time.sleep(0.2)
-        camera_ids = self.vimba.getCameraIds()
-
-        print("[MakoDevice] CMOS camera found: ",camera_ids)
-        self.camera = self.vimba.getCamera(camera_ids[0])
-
-        self.camera.openCamera()
-
-        # list camera features
-        # cameraFeatureNames = self.camera.getFeatureNames()
-        # for name in cameraFeatureNames:
-        #     print('Camera feature:', name)
-
-        self.camera.AcquisitionMode = 'Continuous'
-        #print("Frame rate limit: ")
-        #print(self.camera.AcquisitionFrameRateLimit)
-        #print(self.camera.AcquisitionFrameRateAbs)
-
-        self.frame = self.camera.getFrame()
-        self.frame.announceFrame()
+        self.camera.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
+        self.camera.ExposureTime.SetValue(200000) # us
+        self.camera.AcquisitionFrameRateEnable.SetValue(True)
+        self.camera.AcquisitionFrameRate.SetValue(5) # Hz
 
     def __del__(self):
         return
 
     def shutdown(self):
         print("[MakoDevice] Closing Device")
-        self.camera.runFeatureCommand('AcquisitionStop')
-        self.camera.endCapture()
-        self.camera.revokeAllFrames()
-        self.vimba.shutdown()
+        try:
+            #self.camera.EndAcquisition()
+            del self.nodemap
+            #self.camera.DeInit()
+            del self.nodemap_tldevice
+            del self.camera
+            self.cam_list.Clear()
+            #self.system.ReleaseInstance()
+        except:
+            print("[MakoDevice] Not closed properly")
 
     # TODO: in free running mode, don't get new data if there is unprocessed data in queue
-    # getData() acquires an image from Andor
+    # getData() acquires an image from Mako
     # TODO: copy the data from buffer?
     def getData(self):
         with self.mako_lock:
-            self.frame.waitFrameCapture(1000)
-            self.frame.queueFrameCapture()
-            imgData = self.frame.getBufferByteData()
+            #imgData = np.zeros((3208,2200), dtype=int)
+            self.image_result = self.camera.GetNextImage(1000)
+            if self.image_result.IsIncomplete():
+                print('Image incomplete with image status %d ...' % self.image_result.GetImageStatus())
+            else:
+                width = self.image_result.GetWidth()
+                height = self.image_result.GetHeight()
+                #print('Grabbed Image with width = %d, height = %d' % (width, height))
+            imgData = self.image_result.GetNDArray()
             image_arr = np.ndarray(buffer = imgData,
-                           dtype = np.uint8,
-                           shape = (self.frame.height,self.frame.width))
-            image_arr = image_arr.reshape((self.frame.height//self.bin_size, self.bin_size, \
-                self.frame.width//self.bin_size, self.bin_size)).max(3).max(1)
-        # print("[MakoDevice] frame acquired, queue = %d" % self.dataQueue.qsize())
+                            dtype = np.uint8,
+                            shape = (height,width))
+            self.image_result.Release()
         return image_arr
 
+    def setExpTime(self, expTime):
+        #print('[MakoDevice] setExpTime got called with value=', expTime)
+        self.changeSetting(self.mako_lock, lambda:self.camera.ExposureTime.SetValue(expTime*1000))
+        print("[MakoDevice] Exposure time set to %.3f ms" % expTime)
 
+    def setFrameRate(self, frameRate):
+        #print('[MakoDevice] setFrameRate got called with value=', frameRate)
+        self.changeSetting(self.mako_lock, lambda:self.camera.AcquisitionFrameRate.SetValue(frameRate))
+        print("[MakoDevice] Frame rate set to %.3f Hz" % frameRate)
 
 # This class does the computation for free running mode, mostly displaying
 # to the GUI
@@ -128,10 +126,6 @@ class MakoFreerun(Devices.BrillouinDevice.DeviceProcess):
 
     # data is an numpy array of type int32
     def doComputation(self, data):
-        # print("[MakeFreerun] processing")
-
-        # startTime = default_timer()
-
         dataOriented = np.flip(data.transpose((1,0)),1)
         # dataOriented = np.data.transpose((1,0))
         # returns a tuple of (image, (centerX, centerY))

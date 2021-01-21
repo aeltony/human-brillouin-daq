@@ -111,8 +111,8 @@ class Device(QtCore.QThread):
             if continueLoop:
                 continue
 
-            # if self.deviceName == 'Zaber':
-            #     print('dataQueue size = ', self.dataQueue.qsize())
+            #if self.deviceName == 'Mako':
+                #print('Mako dataQueue size = ', self.dataQueue.qsize())
 
             while self.dataQueue.qsize() >= self.queueMax:
                 sleep(0.02)
