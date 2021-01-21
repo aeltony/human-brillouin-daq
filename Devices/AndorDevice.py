@@ -150,33 +150,17 @@ class AndorDevice(Devices.BrillouinDevice.Device):
 # raw frames from the camera
 class AndorProcessFreerun(Devices.BrillouinDevice.DeviceProcess):
     updateSampleBrillouinSeqSig = pyqtSignal('PyQt_PyObject')
-    updateCalibBrillouinSeqSig = pyqtSignal('PyQt_PyObject')
     updateSampleSpectrum = pyqtSignal('PyQt_PyObject')
-    updateCalibSpectrum = pyqtSignal('PyQt_PyObject')
     updateSampleImageSig = pyqtSignal('PyQt_PyObject')
-    updateCalibImageSig = pyqtSignal('PyQt_PyObject')
 
     def __init__(self, device, stopProcessingEvent, finishedTrigger = None):
         super(AndorProcessFreerun, self).__init__(device, stopProcessingEvent, finishedTrigger)
 
-        self._channel = False # True = reference, False = sample
         self._sampleSpectCenter = 255 # default value
         self._sampleSlineIdx = 32 # default value
-        self._calibSpectCenter = 100 # default value
-        self._calibSlineIdx = 32 # default value
 
-        self.cropHeight = 3 # typical: 3
-        self.cropWidth = 50 # typical: 50
-
-    @property
-    def channel(self):
-        with self.flagLock:
-            return self._channel
-
-    @channel.setter
-    def channel(self, channel):
-        with self.flagLock:
-            self._channel = channel
+        self.cropHeight = 50 # typical: 3
+        self.cropWidth = 100 # typical: 50
 
     @property
     def sampleSpectCenter(self):
@@ -190,15 +174,6 @@ class AndorProcessFreerun(Devices.BrillouinDevice.DeviceProcess):
     def sampleSpectCenter(self, spectrumCenter):
         with self.flagLock:
             self._sampleSpectCenter = spectrumCenter
-    @property
-    def calibSpectCenter(self):
-        with self.flagLock:
-            return self._calibSpectCenter
-
-    @calibSpectCenter.setter
-    def calibSpectCenter(self, spectrumCenter):
-        with self.flagLock:
-            self._calibSpectCenter = spectrumCenter
 
     @property
     def sampleSlineIdx(self):
@@ -209,16 +184,6 @@ class AndorProcessFreerun(Devices.BrillouinDevice.DeviceProcess):
     def sampleSlineIdx(self, slineIndex):
         with self.flagLock:
             self._sampleSlineIdx = slineIndex
-
-    @property
-    def calibSlineIdx(self):
-        with self.flagLock:
-            return self._calibSlineIdx
-
-    @calibSlineIdx.setter
-    def calibSlineIdx(self, slineIndex):
-        with self.flagLock:
-            self._calibSlineIdx = slineIndex
 
     # data is an numpy array of type int32
     def doComputation(self, data):
@@ -231,52 +196,28 @@ class AndorProcessFreerun(Devices.BrillouinDevice.DeviceProcess):
         scaled_image = scaled_image.astype(int)
         scaled_8bit = np.array(scaled_image, dtype = np.uint8)
 
-        if self.channel==False:
-            # Find spectral line
-            sline_idx = self.sampleSlineIdx
-            if (sline_idx < self.cropHeight):
-                loc = self.cropHeight
-            elif (sline_idx >= proper_image.shape[0]-self.cropHeight):
-                loc = proper_image.shape[0]-self.cropHeight-1
-            else:
-                loc = sline_idx
-            sline = proper_image[sline_idx, :]
-            mid = self.sampleSpectCenter
-            sline_crop = sline[mid-self.cropWidth:mid+self.cropWidth]
-            cropped = scaled_8bit[loc-self.cropHeight:loc+self.cropHeight+1, mid-self.cropWidth:mid+self.cropWidth]
-            self.image_andor = cropped
-            #image = imutils.resize(self.image_andor, width=1024)
-            image = cv2.resize(self.image_andor, (0,0), fx=1024/(2*self.cropWidth), fy=170/(2*self.cropHeight + 1), \
-                interpolation = cv2.INTER_NEAREST)
-            #### Fitting Brillouin spectrum
-            interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(sline_crop.astype(float)),1e-4,1e-4,50)
-            # emit signals for GUI to update in real time
-            self.updateSampleBrillouinSeqSig.emit(interPeakDist)
-            self.updateSampleSpectrum.emit((np.copy(sline_crop), np.copy(fittedSpect)))
-            self.updateSampleImageSig.emit(np.copy(image))
+        # Find spectral line
+        sline_idx = self.sampleSlineIdx
+        if (sline_idx < self.cropHeight):
+            loc = self.cropHeight
+        elif (sline_idx >= proper_image.shape[0]-self.cropHeight):
+            loc = proper_image.shape[0]-self.cropHeight-1
         else:
-            # Find spectral line
-            sline_idx = self.calibSlineIdx
-            if (sline_idx < self.cropHeight):
-                loc = self.cropHeight
-            elif (sline_idx >= proper_image.shape[0]-self.cropHeight):
-                loc = proper_image.shape[0]-self.cropHeight-1
-            else:
-                loc = sline_idx
-            sline = proper_image[sline_idx, :]
-            mid = self.calibSpectCenter
-            sline_crop = sline[mid-self.cropWidth:mid+self.cropWidth]
-            cropped = scaled_8bit[loc-self.cropHeight:loc+self.cropHeight+1, mid-self.cropWidth:mid+self.cropWidth]
-            self.image_andor = cropped
-            #image = imutils.resize(self.image_andor, width=1024)
-            image = cv2.resize(self.image_andor, (0,0), fx=1024/(2*self.cropWidth), fy=170/(2*self.cropHeight + 1), \
-                interpolation = cv2.INTER_NEAREST)
-            #### Fitting Brillouin spectrum
-            interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(sline_crop.astype(float)),1e-4,1e-4,50)
-            # emit signals for GUI to update in real time
-            self.updateCalibBrillouinSeqSig.emit(interPeakDist)
-            self.updateCalibSpectrum.emit((np.copy(sline_crop), np.copy(fittedSpect)))
-            self.updateCalibImageSig.emit(np.copy(image))
+            loc = sline_idx
+        sline = proper_image[sline_idx, :]
+        mid = self.sampleSpectCenter
+        sline_crop = sline[mid-self.cropWidth:mid+self.cropWidth]
+        cropped = scaled_8bit[loc-self.cropHeight:loc+self.cropHeight+1, mid-self.cropWidth:mid+self.cropWidth]
+        self.image_andor = cropped
+        #image = imutils.resize(self.image_andor, width=1024)
+        image = cv2.resize(self.image_andor, (0,0), fx=1024/(2*self.cropWidth), fy=512/(2*self.cropHeight), \
+            interpolation = cv2.INTER_NEAREST)
+        #### Fitting Brillouin spectrum
+        interPeakDist, fittedSpect = DataFitting.fitSpectrum(np.copy(sline_crop.astype(float)),1e-4,1e-4,50)
+        # emit signals for GUI to update in real time
+        self.updateSampleBrillouinSeqSig.emit(interPeakDist)
+        self.updateSampleSpectrum.emit((np.copy(sline_crop), np.copy(fittedSpect)))
+        self.updateSampleImageSig.emit(np.copy(image))
 
         # return value is pushed into a Queue, which is collected by the ScanManager
         # for global processing (i.e. Brillouin value segmentation)

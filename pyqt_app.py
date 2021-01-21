@@ -69,9 +69,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         laserY = self.configParser.getint('Scan', 'laser_position_Y')
         RFpower = self.configParser.getfloat('Synth', 'RFpower')
         sampleSpectCenter = self.configParser.getint('Andor', 'sampleSpectCenter')
-        calibSpectCenter = self.configParser.getint('Andor', 'calibSpectCenter')
         sampleSlineIdx = self.configParser.getint('Andor', 'sampleSlineIdx')
-        calibSlineIdx = self.configParser.getint('Andor', 'calibSlineIdx')
         pupilRadius = self.configParser.getfloat('Mako', 'pupilRadius')
 
         self.params = [
@@ -95,10 +93,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                 {'name': 'Ambient Temp.', 'type': 'float', 'value': 0.0, 'suffix':' deg. C', 'readonly':True, 'decimals':4},
                 {'name': 'Ref. FSR', 'type': 'float', 'value':16.25, 'suffix':' GHz', 'limits':(5, 100), 'decimals':6}, 
                 {'name': 'Ref. SD', 'type': 'float', 'value':0.1, 'suffix':' GHz/px', 'limits':(0, 2), 'decimals':4}, 
-                {'name': 'ToggleReference', 'type':'toggle', 'ButtonText':('Switch to Reference', 'Switch to Sample')},         #False=Sampe="Switch to Ref"
+                {'name': 'ToggleReference', 'type':'toggle', 'ButtonText':('Switch to Reference', 'Switch to Sample')},         #False=Sample="Switch to Ref"
                 {'name': 'Scan/Cancel', 'type': 'action2', 'ButtonText':('Scan', 'Cancel')},
-                # {'name': 'Scan', 'type':'action'},
-                # {'name': 'Pause', 'type':'action'},
                 {'name': 'More Settings', 'type': 'group', 'children': [
                     {'name': 'Laser Focus X', 'type': 'int', 'value': laserX, 'suffix':' px', 'limits':(1,2048),'decimals':4},
                     {'name': 'Laser Focus Y', 'type': 'int', 'value': laserY, 'suffix':' px', 'limits':(1,2048),'decimals':4}
@@ -127,15 +123,13 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
                 {'name': 'Exposure', 'type':'float', 'value':0.3, 'suffix':' s', 'step':0.05, 'limits':(0.01, 10)},
                 {'name': 'Ref. Exposure', 'type':'float', 'value':1.0, 'suffix':' s', 'step':0.05, 'limits':(0.01, 10)},
                 {'name': 'Sample Column', 'type':'int', 'value': sampleSpectCenter, 'suffix':' px', 'step':1, 'limits':(0, 2048)},
-                {'name': 'Ref. Column', 'type':'int', 'value': calibSpectCenter, 'suffix':' px', 'step':1, 'limits':(0, 2048)},
-                {'name': 'Sample Row', 'type':'int', 'value': sampleSlineIdx, 'suffix':' px', 'step':1, 'limits':(0, 2048)},
-                {'name': 'Ref. Row', 'type':'int', 'value': calibSlineIdx, 'suffix':' px', 'step':1, 'limits':(0, 2048)},
+                {'name': 'Sample Row', 'type':'int', 'value': sampleSlineIdx, 'suffix':' px', 'step':1, 'limits':(0, 2048)}
             ]},        
             {'name': 'Pupil Camera', 'type': 'group', 'children': [
                 {'name': 'Pupil Radius', 'type': 'float', 'value': pupilRadius, 'suffix':' px', 'step': 5, 'limits': (1, 1000)},
                 {'name': 'Scale Factor', 'type': 'float', 'value': 0.02, 'suffix':' (mm/px)', 'step': 0.001, 'limits': (0, 1)},
-                {'name': 'Exposure Time', 'type': 'float', 'value': 200, 'limits':(0.1, 10000)},
-                {'name': 'Frame Rate', 'type': 'int', 'value': 5, 'limits':(1, 20)}
+                {'name': 'Exposure Time', 'type': 'float', 'value': 200, 'suffix':'ms', 'limits':(0.1, 10000)},
+                {'name': 'Frame Rate', 'type': 'int', 'value': 5, 'suffix':'Hz', 'limits':(1, 20)}
             ]}
         ]
         ## Create tree of Parameter objects
@@ -149,12 +143,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             self.CMOShLineValueChange)
         self.allParameters.child('Spectrometer Camera').child('Sample Column').sigValueChanged.connect(
             self.sampleSpectCenterValueChange)
-        self.allParameters.child('Spectrometer Camera').child('Ref. Column').sigValueChanged.connect(
-            self.calibSpectCenterValueChange)
         self.allParameters.child('Spectrometer Camera').child('Sample Row').sigValueChanged.connect(
             self.sampleSlineIdxValueChange)
-        self.allParameters.child('Spectrometer Camera').child('Ref. Row').sigValueChanged.connect(
-            self.calibSlineIdxValueChange)
         self.allParameters.child('Pupil Camera').child('Pupil Radius').sigValueChanged.connect(
             self.pupilRadiusValueChange)
 
@@ -212,7 +202,6 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.AndorDeviceThread = AndorDevice(self.stop_event, self)
         self.AndorProcessThread = AndorProcessFreerun(self.AndorDeviceThread, self.stop_event)
         self.AndorProcessThread.updateSampleImageSig.connect(self.AndorSampleProcessUpdate)
-        self.AndorProcessThread.updateCalibImageSig.connect(self.AndorCalibProcessUpdate)
 
         # self.CMOSview = CustomViewBox(invertY=True)             # The ViewBox is a zoomable/pannable box
         self.CMOSview = pg.PlotItem()
@@ -323,26 +312,18 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.heatmapHLine_recording.setPos(0)
 
         # Andor Live image - Sample
-        self.SampleView = CustomViewBox(invertY=True)     
-        self.graphicsViewSample.setCentralItem(self.SampleView)    
+        self.SampleView = CustomViewBox(invertY=True)
+        self.graphicsViewSample.setCentralItem(self.SampleView)
         self.SampleView.setAspectLocked(True)
-        self.SampleImage = pg.ImageItem(np.zeros((1024, 170)))                        
+        self.SampleImage = pg.ImageItem(np.zeros((1024, 512)))
         self.SampleView.addItem(self.SampleImage)
         self.SampleView.autoRange(padding=0)
 
-        # Andor Live image - Reference
-        self.CalibView = CustomViewBox(invertY=True)     
-        self.graphicsViewCalib.setCentralItem(self.CalibView)    
-        self.CalibView.setAspectLocked(True)
-        self.CalibImage = pg.ImageItem(np.zeros((1024, 170)))                        
-        self.CalibView.addItem(self.CalibImage)
-        self.CalibView.autoRange(padding=0)
-
         # Andor recorded image
-        self.EMCCDView_recording = CustomViewBox(invertY=True)                      
-        self.dataViewEMCCD.setCentralItem(self.EMCCDView_recording)    
+        self.EMCCDView_recording = CustomViewBox(invertY=True)
+        self.dataViewEMCCD.setCentralItem(self.EMCCDView_recording)
         self.EMCCDView_recording.setAspectLocked(True)
-        self.EMCCDImage_recording = pg.ImageItem(np.zeros((1024, 170)))                         
+        self.EMCCDImage_recording = pg.ImageItem(np.zeros((1024, 512)))
         self.EMCCDView_recording.addItem(self.EMCCDImage_recording)
         self.EMCCDView_recording.autoRange(padding=0)
 
@@ -365,25 +346,6 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         axBottom = self.sampleSpectrumPlot.getAxis('bottom')
         axBottom.setPen(width=2, color='w')
         axLeft = self.sampleSpectrumPlot.getAxis('left')
-        axLeft.setPen(width=2, color='w')
-
-        # calibSpectrumPlot is the plot of the raw data and Lorentzian fit
-        self.calibSpectrumPlot = pg.PlotItem()
-        # self.calibSpectrumPlot.setYRange(0, 17500)
-        self.calibSpectrumPlot.enableAutoRange(axis=self.calibSpectrumPlot.vb.YAxis, enable=True)
-        self.graphicsViewCalibSpectrum.setCentralItem(self.calibSpectrumPlot)
-        self.calibSpectrumItem = pg.PlotDataItem(symbol='o')
-        self.calibSpectrumItem.setSymbolPen(color='g')
-        self.calibSpectrumItem.setPen(None)
-        self.calibSpectrumItem.setData(100*np.ones(100))
-        self.calibSpectrumItem2 = pg.PlotDataItem()
-        self.calibSpectrumItem2.setPen(width=2.5, color='r')
-        self.calibSpectrumItem2.setData(200*np.ones(100))
-        self.calibSpectrumPlot.addItem(self.calibSpectrumItem)
-        self.calibSpectrumPlot.addItem(self.calibSpectrumItem2)
-        axBottom = self.calibSpectrumPlot.getAxis('bottom')
-        axBottom.setPen(width=2, color='w')
-        axLeft = self.calibSpectrumPlot.getAxis('left')
         axLeft.setPen(width=2, color='w')
 
         # Data viewer tab
@@ -422,24 +384,6 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.sampleScanDepthData = np.array([])
         self.sampleScanDepthData2 = np.array([])
 
-        # sampleScanDepthPlot is the Brillouin vs z axis plot
-        self.calibScanDepthPlot = pg.PlotItem()
-        self.calibScanDepthPlot.setYRange(5,6)
-        self.graphicsViewCalibScanDepth.setCentralItem(self.calibScanDepthPlot)
-        self.calibScanDepthPlot.enableAutoRange(axis=self.calibScanDepthPlot.vb.XAxis, enable=True)
-        self.calibScanDepthItem = pg.PlotDataItem() 
-        self.calibScanDepthItem.setPen(width=2.5, color='g')
-        self.calibScanDepthItem2 = pg.PlotDataItem()
-        self.calibScanDepthItem2.setPen(width=2.5, color='b')
-        self.calibScanDepthPlot.addItem(self.calibScanDepthItem)
-        self.calibScanDepthPlot.addItem(self.calibScanDepthItem2)
-        axBottom = self.calibScanDepthPlot.getAxis('bottom')
-        axBottom.setPen(width=2, color='w')
-        axLeft = self.calibScanDepthPlot.getAxis('left')
-        axLeft.setPen(width=2, color='w')
-        self.calibScanDepthData = np.array([])
-        self.calibScanDepthData2 = np.array([])
-
         # data viewer tab
         self.scanDepthPlot_recording = pg.PlotItem()
         self.scanDepthPlot_recording.setYRange(5,6)
@@ -477,26 +421,12 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         axBottom.setPen(width=2, color='w')
         axLeft = self.sampleSpecSeriesPlot.getAxis('left')
         axLeft.setPen(width=2, color='w')
-        # This is the reference spectrograph:
-        self.calibSpecSeriesData = np.zeros((self.maxScanPoints, 2048))
-        self.calibSpecSeriesSize = 0
-        self.calibSpecSeriesPlot = pg.PlotItem()
-        self.graphicsViewCalibSpecSeries.setCentralItem(self.calibSpecSeriesPlot)
-        self.calibSpecSeriesImage = pg.ImageItem(self.calibSpecSeriesData)
-        self.calibSpecSeriesPlot.addItem(self.calibSpecSeriesImage)
-        axBottom = self.calibSpecSeriesPlot.getAxis('bottom')
-        axBottom.setPen(width=2, color='w')
-        axLeft = self.calibSpecSeriesPlot.getAxis('left')
-        axLeft.setPen(width=2, color='w')
 
         self.mainUI()
 
         self.MakoProcessThread.pupilRadius = self.allParameters.child('Pupil Camera').child('Pupil Radius').value()
-        self.AndorProcessThread.channel = False # False = Sample, True = Reference
         self.AndorProcessThread.sampleSpectCenter = self.allParameters.child('Spectrometer Camera').child('Sample Column').value()
-        self.AndorProcessThread.calibSpectCenter = self.allParameters.child('Spectrometer Camera').child('Ref. Column').value()
         self.AndorProcessThread.sampleSlineIdx = self.allParameters.child('Spectrometer Camera').child('Sample Row').value()
-        self.AndorProcessThread.calibSlineIdx = self.allParameters.child('Spectrometer Camera').child('Ref. Row').value()
         self.AndorDeviceThread.start()
         self.AndorDeviceThread.setPriority(QtCore.QThread.TimeCriticalPriority)
         self.AndorProcessThread.start()
@@ -504,9 +434,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
         # create the figures for plotting Brillouin shifts and fits
         self.AndorProcessThread.updateSampleBrillouinSeqSig.connect(self.UpdateSampleBrillouinSeqPlot)
-        self.AndorProcessThread.updateCalibBrillouinSeqSig.connect(self.UpdateCalibBrillouinSeqPlot)
         self.AndorProcessThread.updateSampleSpectrum.connect(self.UpdateSampleSpectrum)
-        self.AndorProcessThread.updateCalibSpectrum.connect(self.UpdateCalibSpectrum)
 
         self.BrillouinScan = ScanManager(self.cancel_event, self.stop_event, self.ZaberDevice, self.ShutterDevice)
         self.BrillouinScan.addToSequentialList(self.AndorDeviceThread, self.AndorProcessThread)
@@ -544,21 +472,10 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.configParser.set('Andor', 'sampleSpectCenter', str(int(value)))
         with open(self.configFilename, 'w') as f:
             self.configParser.write(f)
-    def calibSpectCenterValueChange(self, param, value):
-        # print("[calibSpectCenterValueChange]")
-        self.AndorProcessThread.calibSpectCenter = self.allParameters.child('Spectrometer Camera').child('Ref. Column').value()
-        self.configParser.set('Andor', 'calibSpectCenter', str(int(value)))
-        with open(self.configFilename, 'w') as f:
-            self.configParser.write(f)
 
     def sampleSlineIdxValueChange(self, param, value):
         self.AndorProcessThread.sampleSlineIdx = self.allParameters.child('Spectrometer Camera').child('Sample Row').value()
         self.configParser.set('Andor', 'sampleSlineIdx', str(int(value)))
-        with open(self.configFilename, 'w') as f:
-            self.configParser.write(f)
-    def calibSlineIdxValueChange(self, param, value):
-        self.AndorProcessThread.calibSlineIdx = self.allParameters.child('Spectrometer Camera').child('Ref. Row').value()
-        self.configParser.set('Andor', 'calibSlineIdx', str(int(value)))
         with open(self.configFilename, 'w') as f:
             self.configParser.write(f)
 
@@ -758,13 +675,9 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
     def clearGUIElements(self):
         # print("[clearGUIElements]")
         self.sampleSpecSeriesData = np.zeros((self.maxScanPoints, 2048))
-        self.calibSpecSeriesData = np.zeros((self.maxScanPoints, 2048))
         self.sampleSpecSeriesSize = 0
-        self.calibSpecSeriesSize = 0
         self.sampleScanDepthData = np.array([])
         self.sampleScanDepthData2 = np.array([])
-        self.calibScanDepthData = np.array([])
-        self.calibScanDepthData2 = np.array([])
 
     def startScan(self):
         # First check that a session is running, and that an experiment is selected
@@ -846,11 +759,9 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         # state == False --> Sample
         if state:
             self.ShutterDevice.setShutterState(self.ShutterDevice.REFERENCE_STATE)
-            self.AndorProcessThread.channel = True
             self.AndorDeviceThread.setExposure(self.allParameters.child('Spectrometer Camera').child('Ref. Exposure').value())
         else:
             self.ShutterDevice.setShutterState(self.ShutterDevice.SAMPLE_STATE)
-            self.AndorProcessThread.channel = False
             self.AndorDeviceThread.setExposure(self.allParameters.child('Spectrometer Camera').child('Exposure').value())
 
     def switchAutoExp(self, sliderParam, state):
@@ -1047,55 +958,6 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         ydata2 = self.sampleScanDepthData2[~np.isnan(self.sampleScanDepthData2)]
         self.sampleScanDepthItem2.setData(x=xdata2, y=ydata2)
 
-    # updates the figure containing the Brillouin value plot. newData is a list
-    def UpdateCalibBrillouinSeqPlot(self, interPeakDist):
-        # print("[UpdateBrillouinSeqPlot]")
-        SD = self.allParameters.child('Scan').child('Ref. SD').value()
-        FSR = self.allParameters.child('Scan').child('Ref. FSR').value()
-        T = self.allParameters.child('Scan').child('Ambient Temp.').value()
-
-        if len(interPeakDist)==2:
-            newData = [0.5*(FSR - SD*interPeakDist[1])]
-            newData2 = newData
-        elif len(interPeakDist)==3:
-            ## CALIBRATION if reference arm open and signal counts in optimal range
-            if (self.ShutterDevice.state == ShutterDevice.REFERENCE_STATE and interPeakDist[0]<15900 and interPeakDist[0]>10000):
-                print("Updating calibration...")
-                WaterBS = self.waterConst[0]*T*T + self.waterConst[1]*T + self.waterConst[2]
-                PlasticBS = 16.3291 - (self.plasticConst[0]*T*T + self.plasticConst[1]*T + self.plasticConst[2])
-                SD = 2*(PlasticBS - WaterBS)/(interPeakDist[1] + interPeakDist[2])
-                FSR = 2*WaterBS + interPeakDist[1]*SD
-                self.allParameters.child('Scan').child('Ref. SD').setValue(SD)
-                self.allParameters.child('Scan').child('Ref. FSR').setValue(FSR)
-            newData = [0.5*(FSR - SD*interPeakDist[1])]
-            newData2 = [0.5*(FSR - SD*interPeakDist[2])]
-        else:
-            newData = [np.nan]
-            newData2 = [np.nan]
-
-        if len(newData)+len(self.calibScanDepthData) > self.maxScanPoints:
-            t = self.maxScanPoints - len(newData) - len(self.calibScanDepthData)
-            self.calibScanDepthData = np.roll(self.calibScanDepthData, t)
-            self.calibScanDepthData[self.maxScanPoints - len(newData):] = newData
-        else:
-            self.calibScanDepthData = np.append(self.calibScanDepthData, newData)
-
-        xdata = np.arange(len(self.calibScanDepthData))
-        xdata = xdata[~np.isnan(self.calibScanDepthData)]
-        ydata = self.calibScanDepthData[~np.isnan(self.calibScanDepthData)]
-        self.calibScanDepthItem.setData(x=xdata, y=ydata)
-
-        if len(newData2)+len(self.calibScanDepthData2) > self.maxScanPoints:
-            t = self.maxScanPoints - len(newData2) - len(self.calibScanDepthData2)
-            self.calibScanDepthData2 = np.roll(self.calibScanDepthData2, t)
-            self.calibScanDepthData2[self.maxScanPoints - len(newData2):] = newData2
-        else:
-            self.calibScanDepthData2 = np.append(self.calibScanDepthData2, newData2)
-        xdata2 = np.arange(len(self.calibScanDepthData2))
-        xdata2 = xdata2[~np.isnan(self.calibScanDepthData2)]
-        ydata2 = self.calibScanDepthData2[~np.isnan(self.calibScanDepthData2)]
-        self.calibScanDepthItem2.setData(x=xdata2, y=ydata2)
-
     # Plot fitted Brillouin spectrum
     # curvedata is a tuple of (raw spectrum, fitted spectrum)
     def UpdateSampleSpectrum(self,curveData):
@@ -1127,53 +989,13 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         sampleSpecSeriesDataScaled = self.sampleSpecSeriesData #* (255.0 / maximum)
         self.sampleSpecSeriesImage.setImage(sampleSpecSeriesDataScaled)
 
-    # Plot fitted Brillouin spectrum
-    # curvedata is a tuple of (raw spectrum, fitted spectrum)
-    def UpdateCalibSpectrum(self,curveData):
-        # print("[UpdateSpectrum]")
-        rawSpect = curveData[0]
-        fitSpect = curveData[1]
-
-        xdata = np.arange(len(rawSpect))
-
-        self.calibSpectrumItem.setData(x=xdata, y=np.array(rawSpect))
-        if len(fitSpect[~np.isnan(fitSpect)]) == len(rawSpect):
-            self.calibSpectrumItem2.setData(x=np.copy(xdata), y=np.array(fitSpect))
-        else:
-            self.calibSpectrumItem2.setData(x=np.copy(xdata), y=np.zeros(len(rawSpect)))
-
-        if self.calibSpecSeriesData.shape[1]!=len(rawSpect):    #if size of spectrum change, reset the data
-            # print('[UpdateSpectrum] Resizing spectrograph')
-            self.calibSpecSeriesData = np.zeros((self.maxScanPoints, len(rawSpect)))
-            self.calibSpecSeriesSize = 0
-
-        if (self.calibSpecSeriesSize < self.maxScanPoints):
-            self.calibSpecSeriesData[self.calibSpecSeriesSize,:] = rawSpect
-            self.calibSpecSeriesSize += 1
-        else:
-            self.calibSpecSeriesData = np.roll(self.calibSpecSeriesData, -1, axis=0)
-            self.calibSpecSeriesData[-1, :] = rawSpect
-
-        maximum = self.calibSpecSeriesData.max()
-        calibSpecSeriesDataScaled = self.calibSpecSeriesData #* (255.0 / maximum)
-        self.calibSpecSeriesImage.setImage(calibSpecSeriesDataScaled)
-
-
     # Update raw Andor image
     def AndorSampleProcessUpdate(self, image):
         # print("[AndorProcessUpdate]")
         #(counter, image) = self.AndorProcessThread.processedData.get()
-        # img_rect = QtCore.QRectF(0, 0, 1024, 170)
+        # img_rect = QtCore.QRectF(0, 0, 1024, 512)
         # self.SampleImage.setRect(img_rect)
         self.SampleImage.setImage(image.transpose((1,0)))
-
-    # Update raw Andor image
-    def AndorCalibProcessUpdate(self, image):
-        # print("[AndorProcessUpdate]")
-        #(counter, image) = self.AndorProcessThread.processedData.get()
-        # img_rect = QtCore.QRectF(0, 0, 1024, 170)
-        # self.SampleImage.setRect(img_rect)
-        self.CalibImage.setImage(image.transpose((1,0)))
 
     # Update the CMOS camera image
     # makoData[0] is the CMOS camera image with pupil detection
