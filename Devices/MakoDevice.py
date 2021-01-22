@@ -40,18 +40,23 @@ class MakoDevice(Devices.BrillouinDevice.Device):
         self.camera.Init()
         # Retrieve genicam nodemap
         self.nodemap = self.camera.GetNodeMap()
+        self.imageHeight = 2200 # Max 2200
+        self.imageWidth = 2200 # Max 3208
+        self.bin_size = 1
         self.set_up()
         self.camera.BeginAcquisition()
-        self.imageHeight = 2200
-        self.imageWidth = 3208
-        self.bin_size = 1
         self.mako_lock = app.mako_lock
         self.runMode = 0    #0 is free running, 1 is scan
     
     # set up default parameters
     def set_up(self):
+        self.camera.Width.SetValue(self.imageWidth)
+        self.camera.Height.SetValue(self.imageHeight)
+        self.camera.OffsetX.SetValue(int(0.5*(3208 - self.imageWidth)))
         self.camera.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
         self.camera.ExposureTime.SetValue(200000) # us
+        self.camera.GainAuto.SetValue(PySpin.GainAuto_Off)
+        self.camera.Gain.SetValue(0) # dB
         self.camera.AcquisitionFrameRateEnable.SetValue(True)
         self.camera.AcquisitionFrameRate.SetValue(5) # Hz
 

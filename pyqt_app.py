@@ -127,7 +127,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             ]},        
             {'name': 'Pupil Camera', 'type': 'group', 'children': [
                 {'name': 'Pupil Radius', 'type': 'float', 'value': pupilRadius, 'suffix':' px', 'step': 5, 'limits': (1, 1000)},
-                {'name': 'Scale Factor', 'type': 'float', 'value': 0.02, 'suffix':' (mm/px)', 'step': 0.001, 'limits': (0, 1)},
+                {'name': 'Scale Factor', 'type': 'float', 'value': 0.004, 'suffix':' (mm/px)', 'step': 0.001, 'limits': (0, 1)},
                 {'name': 'Exposure Time', 'type': 'float', 'value': 200, 'suffix':'ms', 'limits':(0.1, 10000)},
                 {'name': 'Frame Rate', 'type': 'int', 'value': 5, 'suffix':'Hz', 'limits':(1, 20)}
             ]}
