@@ -1,16 +1,12 @@
 import Devices.BrillouinDevice
 import time
-
 import PySpin
-
 import imutils
 import cv2
 from PyQt5 import QtGui,QtCore
 from PyQt5.QtCore import pyqtSignal
-
 import numpy as np
 from timeit import default_timer as default_timer   #debugging
-
 from PupilDetection import *
 
 # Called "Mako" for historical reasons, this is a FLIR camera.
@@ -26,23 +22,24 @@ class MakoDevice(Devices.BrillouinDevice.Device):
         self.system = None
         self.cam_list = None
         self.camera = None
-        self.nodemap = None
-        self.nodemap_tldevice = None
+        self.imageHeight = 2000 # Max 2200
+        self.imageWidth = 2000 # Max 3208
+        self.bin_size = 1
         self.system = PySpin.System.GetInstance()
         # Retrieve list of cameras from the system
         self.cam_list = self.system.GetCameras()
-        if self.cam_list.GetSize()>0:
-            print("[MakoDevice] FLIR camera found")
-        self.camera = self.cam_list[0]
-        # Retrieve TL device nodemap
-        self.nodemap_tldevice = self.camera.GetTLDeviceNodeMap()
-        # Initialize camera
-        self.camera.Init()
-        # Retrieve genicam nodemap
-        self.nodemap = self.camera.GetNodeMap()
-        self.imageHeight = 2200 # Max 2200
-        self.imageWidth = 2200 # Max 3208
-        self.bin_size = 1
+        print('size of cam list =', self.cam_list.GetSize())
+        if self.cam_list.GetSize()==1:
+            self.camera = self.cam_list[0]
+            #gentlNodemap = camera.GetTLDeviceNodeMap()
+            try:
+                self.camera.Init()
+            except PySpin.SpinnakerException as ex:
+                print(str(ex))
+            #nodeMap = camera.GetNodeMap()
+            print('[MakoDevice] FLIR camera initialized')
+        else:
+            print('[MakoDevice] FLIR camera could not be initialized')
         self.set_up()
         self.camera.BeginAcquisition()
         self.mako_lock = app.mako_lock
@@ -50,15 +47,21 @@ class MakoDevice(Devices.BrillouinDevice.Device):
     
     # set up default parameters
     def set_up(self):
-        self.camera.Width.SetValue(self.imageWidth)
-        self.camera.Height.SetValue(self.imageHeight)
-        self.camera.OffsetX.SetValue(int(0.5*(3208 - self.imageWidth)))
-        self.camera.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
-        self.camera.ExposureTime.SetValue(200000) # us
-        self.camera.GainAuto.SetValue(PySpin.GainAuto_Off)
-        self.camera.Gain.SetValue(0) # dB
-        self.camera.AcquisitionFrameRateEnable.SetValue(True)
-        self.camera.AcquisitionFrameRate.SetValue(5) # Hz
+        try:
+            self.camera.Width.SetValue(self.imageWidth)
+            self.camera.Height.SetValue(self.imageHeight)
+            self.camera.OffsetX.SetValue(int(0.5*(3208 - self.imageWidth)))
+            self.camera.OffsetY.SetValue(int(0.5*(2200 - self.imageHeight)))
+            self.camera.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
+            self.camera.ExposureTime.SetValue(200000) # us
+            self.camera.GainAuto.SetValue(PySpin.GainAuto_Off)
+            self.camera.Gain.SetValue(0) # dB
+            self.camera.AcquisitionFrameRateEnable.SetValue(True)
+            self.camera.AcquisitionFrameRate.SetValue(5) # Hz
+            self.camera.AcquisitionMode.SetValue(0)
+        except PySpin.SpinnakerException as ex:
+            print(str(ex))
+        print('[MakoDevice] Set-up complete')
 
     def __del__(self):
         return
@@ -66,31 +69,42 @@ class MakoDevice(Devices.BrillouinDevice.Device):
     def shutdown(self):
         print("[MakoDevice] Closing Device")
         try:
-            #self.camera.EndAcquisition()
-            del self.nodemap
-            #self.camera.DeInit()
-            del self.nodemap_tldevice
-            del self.camera
+            self.camera.EndAcquisition()
+        except:
+            print("[MakoDevice] Could not stop acquisition")
+        try:
+            self.camera.DeInit()
+            self.camera = None
             self.cam_list.Clear()
-            #self.system.ReleaseInstance()
+            self.system.ReleaseInstance()
         except:
             print("[MakoDevice] Not closed properly")
 
-    # TODO: in free running mode, don't get new data if there is unprocessed data in queue
     # getData() acquires an image from Mako
-    # TODO: copy the data from buffer?
     def getData(self):
         with self.mako_lock:
-            #imgData = np.zeros((3208,2200), dtype=int)
-            self.image_result = self.camera.GetNextImage(1000)
+            #imgData = np.zeros((self.imageWidth,self.imageHeight), dtype=int)
+            try:
+                self.image_result = self.camera.GetNextImage(1000)
+            except:
+                print('[MakoDevice] Empty buffer when acquiring image')
+                imgData = np.zeros((self.imageWidth,self.imageHeight), dtype=int)
+                image_arr = np.ndarray(buffer = imgData,
+                                       dtype = np.uint8,
+                                       shape = (self.imageHeight,self.imageWidth))
+                return image_arr
             if self.image_result.IsIncomplete():
-                print('Image incomplete with image status %d ...' % self.image_result.GetImageStatus())
+                print('[MakoDevice] Image incomplete with image status %d ...' % self.image_result.GetImageStatus())
+                imgData = np.zeros((self.imageWidth,self.imageHeight), dtype=int)
+                image_arr = np.ndarray(buffer = imgData,
+                                       dtype = np.uint8,
+                                       shape = (self.imageHeight,self.imageWidth))
+                return image_arr
             else:
                 width = self.image_result.GetWidth()
                 height = self.image_result.GetHeight()
-                #print('Grabbed Image with width = %d, height = %d' % (width, height))
-            imgData = self.image_result.GetNDArray()
-            image_arr = np.ndarray(buffer = imgData,
+                #print('[MakoDevice] Grabbed Image with width = %d, height = %d' % (width, height))
+            image_arr = np.ndarray(buffer = self.image_result.GetNDArray(),
                             dtype = np.uint8,
                             shape = (height,width))
             self.image_result.Release()

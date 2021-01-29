@@ -52,9 +52,9 @@ class AndorDevice(Devices.BrillouinDevice.Device):
         self.cam.GetTemperature()
         while self.cam.temperature > 5:
             self.cam.GetTemperature()
-            print("[AndorDevice] Camera cooling down, current T: ",self.cam.temperature,"C")
+            print("[AndorDevice] Camera cooling down, current T: %.2f C" % self.cam.temperature)
             time.sleep(1)
-        
+
 
     def __del__(self):
         return 0
@@ -120,12 +120,24 @@ class AndorDevice(Devices.BrillouinDevice.Device):
             return self.cam.exposure
 
     def setExposure(self, exposureTime):
-        # print('[AndorDevice] setExposure got called!')
-        self.changeSetting(self.andor_lock, lambda:self.cam.SetExposureTime(exposureTime))
+        print('[AndorDevice] setExposure got called!')
+        with self.andor_lock:
+            try:
+                print('Trying...')
+                reply = self.cam.SetExposureTime(exposureTime)
+                print('reply = ', reply)
+            except:
+                print('AndorDevice could not setExposure')
+        #self.changeSetting(self.andor_lock, lambda:self.cam.SetExposureTime(exposureTime))
         print("[AndorDevice] Exposure set to %f s" % exposureTime)
 
     def forceSetExposure(self, exposureTime):
-        self.cam.SetExposureTime(exposureTime)
+        print('[AndorDevice] forceSetExposure got called!')
+        try:
+            reply = self.cam.SetExposureTime(exposureTime)
+            print('reply =', reply)
+        except:
+            print('AndorDevice could not forceSetExposure')
         print("[AndorDevice] Exposure set to %f s" % exposureTime)
 
     #def setTemperature(self, desiredTemp):

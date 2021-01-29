@@ -1,4 +1,4 @@
-from PyQt5 import QtGui,QtCore
+from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.QtCore import pyqtSignal
 
 from ExperimentData import *
@@ -104,7 +104,7 @@ class BrillouinTreeModel(QtGui.QStandardItemModel):
 				treeView.setFirstColumnSpanned(self.rowCount()-1, treeView.rootIndex(), True)
 				# self.treeView.setCurrentIndex(parent.index())
 				treeView.selectionModel().select(
-					newExpItem.index(), QtGui.QItemSelectionModel.ClearAndSelect|QtGui.QItemSelectionModel.Rows)
+					newExpItem.index(), QtCore.QItemSelectionModel.ClearAndSelect|QtCore.QItemSelectionModel.Rows)
 				self.setActiveExperiment(expIdx)
 
 			# Navigate to this index in the treeView
@@ -134,7 +134,7 @@ class BrillouinTreeModel(QtGui.QStandardItemModel):
 					# highlight the last inserted scan
 					newScanTreeIndex = expItem.child(scanIdx,1).index()
 					treeView.selectionModel().select(
-						newScanTreeIndex, QtGui.QItemSelectionModel.ClearAndSelect|QtGui.QItemSelectionModel.Rows)
+						newScanTreeIndex, QtCore.QItemSelectionModel.ClearAndSelect|QtCore.QItemSelectionModel.Rows)
 				else:
 					pass
 					# TODO: update existing item

@@ -1,20 +1,15 @@
 from __future__ import division
-
 import Devices.BrillouinDevice
 import time
-
 from PyQt5 import QtGui,QtCore
 from PyQt5.QtCore import pyqtSignal
-
 import numpy as np
 import queue as Queue
-
 import threading
 import zaber.serial as zs
 
-# Zaber motor does not need to run in  its own thread, so we don't implement a getData() method
+# Zaber motor does not need to run in its own thread, so we don't implement a getData() method
 class ZaberDevice(Devices.BrillouinDevice.Device):
-    # motorMovedSig = pyqtSignal('PyQt_PyObject')
 
 	# This class always runs, so it takes app as an argument
     def __init__(self, stop_event, app):
@@ -47,28 +42,10 @@ class ZaberDevice(Devices.BrillouinDevice.Device):
             print("[ZaberDevice] Z-axis homed")
         else:
             print("[ZaberDevice] Z-axis home failed")
-
+        #print('xy status =', self.xy_device.get_status())
+        #print('z status =', self.z_device.get_status())
         self.xy_microstep_size = 0.15625 #Microstep resolution in um
         self.z_microstep_size = 0.001 #Encoder count size in um
-        #self.microstep_size = 0.047625 #um
-
-        #microstep_cmd = zs.AsciiCommand("set resolution", 64)  #set microstep resolution
-        #reply = self.x_axis.send(microstep_cmd)
-        #if reply.warning_flag != "--":
-        #    print("Warning received for X axis! Flag: {}".format(reply.warning_flag))
-        #else:
-        #    print("[ZaberDevice] X-axis resolution set")
-        #reply = self.y_axis.send(microstep_cmd)
-        #if reply.warning_flag != "--":
-        #    print("Warning received for Y axis! Flag: {}".format(reply.warning_flag))
-        #else:
-        #    print("[ZaberDevice] Y-axis resolution set")
-        #reply = self.z_axis.send(microstep_cmd)
-        #if reply.warning_flag != "--":
-        #    print("Warning received for Z axis! Flag: {}".format(reply.warning_flag))
-        #else:
-        #    print("[ZaberDevice] Z-axis resolution set")
-        #print("[ZaberDevice] Microstep resolution set to %.6f um" % self.microstep_size)
 
         #speed = 26
         #speed_cmd = zs.AsciiCommand("set speed", int(speed/26*894455))  # 894455 = 26mm/s
@@ -81,13 +58,6 @@ class ZaberDevice(Devices.BrillouinDevice.Device):
         #self.x_axis.send(acceleration_cmd)
         #self.y_axis.send(acceleration_cmd)
         #self.z_axis.send(acceleration_cmd)
-
-        #self.x_axis.move_abs(int(self.homeLocX/self.microstep_size))
-        #print("[ZaberDevice] X-axis homed")
-        #self.y_axis.move_abs(int(self.homeLocY/self.microstep_size))
-        #print("[ZaberDevice] Y-axis homed")
-        #self.z_axis.move_abs(int(self.homeLocZ/self.microstep_size))
-        #print("[ZaberDevice] Z-axis homed")
 
         self.ZaberLock = app.ZaberLock
 
@@ -130,18 +100,34 @@ class ZaberDevice(Devices.BrillouinDevice.Device):
 
     # returns current position of motor, in um
     def updatePosition(self, whichAxis='a'):
-        # print '[ZaberDevice] updatePosition'
+        #print('[ZaberDevice] updatePosition')
         with self.ZaberLock:
             if whichAxis == 'x':
-                reply_x = self.x_axis.send("get pos")
+                try:
+                    reply_x = self.x_axis.send("get pos")
+                except:
+                    print("[ZaberDevice] Motor busy")
+                    return self._lastPosition
             elif whichAxis == 'y':
-                reply_y = self.y_axis.send("get pos")
+                try:
+                    reply_y = self.y_axis.send("get pos")
+                except:
+                    print("[ZaberDevice] Motor busy")
+                    return self._lastPosition
             elif whichAxis == 'z':
-                reply_z = self.z_axis.send("get pos")
+                try:
+                    reply_z = self.z_axis.send("get pos")
+                except:
+                    print("[ZaberDevice] Motor busy")
+                    return self._lastPosition
             elif whichAxis == 'a':
-                reply_x = self.x_axis.send("get pos")
-                reply_y = self.y_axis.send("get pos")
-                reply_z = self.z_axis.send("get pos")
+                try:
+                    reply_x = self.x_axis.send("get pos")
+                    reply_y = self.y_axis.send("get pos")
+                    reply_z = self.z_axis.send("get pos")
+                except:
+                    print("[ZaberDevice] Motor busy")
+                    return self._lastPosition
         with self.updateLock:
             if whichAxis == 'x':
                 self._lastPosition[0] = float(reply_x.data) * self.xy_microstep_size

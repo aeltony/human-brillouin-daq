@@ -9,7 +9,7 @@ import ntpath
 from scipy import interpolate
 from scipy.interpolate import griddata
 import csv
-from PyQt5 import QtGui, QtCore
+from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.QtCore import QTimer
 import pyqtgraph as pg
 import pyqtgraph.parametertree.parameterTypes as pTypes
@@ -103,10 +103,10 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             {'name': 'Motor', 'type': 'group', 'children': [
                 {'name': 'Velocity', 'type': 'float', 'value': 26, 'suffix':' (mm/s)', 'step': 1, 'limits': (1, 26)},
                 {'name': 'Acceleration', 'type': 'float', 'value': 600, 'suffix':' (mm/s^2)', 'step': 10, 'limits': (1, 1000), 'decimals':4},
-                {'name': 'Jog step', 'type': 'float', 'value': 10, 'suffix':' um', 'step': 1, 'limits':(0.1, 500)},
                 {'name': 'Current X location', 'type': 'float', 'value':0, 'suffix':' um', 'readonly': True, 'decimals':5},
                 {'name': 'Current Y location', 'type': 'float', 'value':0, 'suffix':' um', 'readonly': True, 'decimals':5},
                 {'name': 'Current Z location', 'type': 'float', 'value':0, 'suffix':' um', 'readonly': True, 'decimals':5},
+                {'name': 'Jog step', 'type': 'float', 'value': 10, 'suffix':' um', 'step': 1, 'limits':(0, 5000)},
                 {'name': 'Jog X', 'type': 'action3', 'ButtonText':('Jog X +', 'Jog X -', 'Home X')},
                 {'name': 'Jog Y', 'type': 'action3', 'ButtonText':('Jog Y +', 'Jog Y -', 'Home Y')},
                 {'name': 'Jog Z', 'type': 'action3', 'ButtonText':('Jog Z +', 'Jog Z -', 'Home Z')},
@@ -128,8 +128,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
             {'name': 'Pupil Camera', 'type': 'group', 'children': [
                 {'name': 'Pupil Radius', 'type': 'float', 'value': pupilRadius, 'suffix':' px', 'step': 5, 'limits': (1, 1000)},
                 {'name': 'Scale Factor', 'type': 'float', 'value': 0.004, 'suffix':' (mm/px)', 'step': 0.001, 'limits': (0, 1)},
-                {'name': 'Exposure Time', 'type': 'float', 'value': 200, 'suffix':'ms', 'limits':(0.1, 10000)},
-                {'name': 'Frame Rate', 'type': 'int', 'value': 5, 'suffix':'Hz', 'limits':(1, 20)}
+                {'name': 'Exposure Time', 'type': 'float', 'value': 200, 'suffix':' ms', 'limits':(0.001, 10000)},
+                {'name': 'Frame Rate', 'type': 'int', 'value': 5, 'suffix':' Hz', 'limits':(1, 20)}
             ]}
         ]
         ## Create tree of Parameter objects
@@ -166,7 +166,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
 
         #Lock used to halt other threads upon app closing
         self.stop_event = threading.Event()
-        self.cancel_event = threading.Event()
+        #self.cancel_event = threading.Event()
         self.synth_lock = threading.Lock()
         self.andor_lock = threading.Lock()
         self.mako_lock = threading.Lock()
@@ -436,7 +436,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.AndorProcessThread.updateSampleBrillouinSeqSig.connect(self.UpdateSampleBrillouinSeqPlot)
         self.AndorProcessThread.updateSampleSpectrum.connect(self.UpdateSampleSpectrum)
 
-        self.BrillouinScan = ScanManager(self.cancel_event, self.stop_event, self.ZaberDevice, self.ShutterDevice)
+        self.BrillouinScan = ScanManager(self.stop_event, self.ZaberDevice, self.ShutterDevice)
         self.BrillouinScan.addToSequentialList(self.AndorDeviceThread, self.AndorProcessThread)
         self.BrillouinScan.addToSequentialList(self.MakoDeviceThread, self.MakoProcessThread)
         self.BrillouinScan.addToSequentialList(self.TempSensorDeviceThread, self.TempSensorProcessThread)
@@ -690,29 +690,38 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         print("Starting a scan in Exp_%d: " % self.model.activeExperiment)
 
         # take screenshot
-        p = QtGui.QPixmap.grabWindow(self.winId())
+        p = QtGui.QScreen.grabWindow(app.primaryScreen(), QtGui.QApplication.desktop().winId())
         pImage = p.toImage()
         channels = 4
         s = pImage.bits().asstring(p.width() * p.height() * channels)
-        screenshotArr = np.fromstring(s, dtype=np.uint8).reshape((p.height(), p.width(), channels))
-
+        screenshotArr = np.frombuffer(s, dtype=np.uint8).reshape((p.height(), p.width(), channels))
+        startPosArr = np.array([self.allParameters.child('Scan').child('Start Position').child('X').value(), \
+            self.allParameters.child('Scan').child('Start Position').child('Y').value(), \
+            self.allParameters.child('Scan').child('Start Position').child('Z').value()])
+        stepSizeArr = np.array([self.allParameters.child('Scan').child('Step Size').child('X').value(), \
+            self.allParameters.child('Scan').child('Step Size').child('Y').value(), \
+            self.allParameters.child('Scan').child('Step Size').child('Z').value()])
+        frameNumArr = np.array([self.allParameters.child('Scan').child('Frame Number').child('X').value(), \
+            self.allParameters.child('Scan').child('Frame Number').child('Y').value(), \
+            self.allParameters.child('Scan').child('Frame Number').child('Z').value()])
 
         flattenedParamList = generateParameterList(self.params, self.allParameters)
 
-        scanSettings = {'start': self.allParameters.child('Scan').child('Start Position').value(),  
-            'step': self.allParameters.child('Scan').child('Step Size').value(),   
-            'frames': self.allParameters.child('Scan').child('Frame Number').value(),
+        scanSettings = {'start': startPosArr,
+            'step': stepSizeArr,   
+            'frames': frameNumArr,
             'laserX': self.allParameters.child('Scan').child('More Settings').child('Laser Focus X').value(),
             'laserY': self.allParameters.child('Scan').child('More Settings').child('Laser Focus Y').value(),
             'scaleFactor': self.allParameters.child('Pupil Camera').child('Scale Factor').value(),
             'refExp': self.allParameters.child('Spectrometer Camera').child('Ref. Exposure').value(),
             'sampleExp': self.allParameters.child('Spectrometer Camera').child('Exposure').value(),
-            'waterConst': self.waterConst, 'plasticConst': self.plasticConst,
+            'waterConst': np.array([self.waterConst[0], self.waterConst[1], self.waterConst[2]]),
+            'plasticConst': np.array([self.plasticConst[0], self.plasticConst[1], self.plasticConst[2]]),
             'screenshot': screenshotArr,
             'flattenedParamList': flattenedParamList }
         self.BrillouinScan.assignScanSettings(scanSettings)
 
-        self.maxScanPoints = scanSettings['frames']+5 # Scale plot window to scan length (+ 5 calibration frames)
+        self.maxScanPoints = frameNumArr[0]*frameNumArr[1]*frameNumArr[2] + 5*frameNumArr[0]*frameNumArr[1] # Scale plot window to scan length (+ 5 calibration frames per z-scan)
 
         self.BrillouinScan.saveScan = True
         self.BrillouinScan.sessionData = self.session
@@ -727,8 +736,8 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         self.BrillouinScan.start()
 
     def cancelScan(self):
-        print('Stopping current scan and wrapping-up.')
-        self.cancel_event.set()
+        print('Cancelling current scan and wrapping up.')
+        self.BrillouinScan.Cancel_Flag = True
 
     def onFinishScan(self):
         self.maxScanPoints = 400 # Re-scale plot window for free-running mode
@@ -1025,7 +1034,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         dialog.setAcceptMode(QtGui.QFileDialog.AcceptSave)
         dialog.setNameFilter("HDF5 Files(*.hdf5)")
         if dialog.exec_():
-            filename = str(dialog.selectedFiles().first())
+            filename = str(dialog.selectedFiles()[0])
         else:
             return
 
@@ -1041,7 +1050,7 @@ class App(QtGui.QMainWindow,qt_ui.Ui_MainWindow):
         #     return
 
         self.dataFileName = filename
-        self.sessionName.setText(QtCore.str(filename))
+        self.sessionName.setText(filename)
 
         #create a single new session
         self.session = SessionData(ntpath.basename(self.dataFileName), filename=filename)
